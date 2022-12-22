@@ -3,7 +3,13 @@ package router
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"os/user"
+	"path"
 
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwe"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/therealpaulgg/ssh-sync-server/middleware"
 
 	"github.com/go-chi/chi"
@@ -44,7 +50,28 @@ func Router() chi.Router {
 
 	})
 	r.Get("/upload", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "TODO")
+		// TODO do not use filesystem, this is just for testing
+		u, err := user.Current()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		file, err := os.ReadFile(path.Join(u.HomeDir, "/.ssh-sync/keypair.pub"))
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		key, err := jwk.ParseKey(file, jwk.WithPEM(true))
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		encrypted, err := jwe.Encrypt([]byte("hello world"), jwe.WithKey(jwa.ECDH_ES_A256KW, key))
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		fmt.Fprintln(w, string(encrypted))
 	})
 	r.Get("/download", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "TODO")
