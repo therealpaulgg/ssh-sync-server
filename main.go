@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/rs/zerolog/log"
-	"github.com/therealpaulgg/ssh-sync-server/router"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/router"
 )
 
 func main() {

@@ -10,7 +10,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwe"
 	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/therealpaulgg/ssh-sync-server/middleware"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/middleware"
 
 	"github.com/go-chi/chi"
 )
