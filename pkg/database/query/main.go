@@ -7,14 +7,24 @@ import (
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database"
 )
 
-func Query[T any](query string, args ...interface{}) ([]T, error) {
+type QueryThing[T any] interface {
+	Query(query string, args ...interface{}) ([]T, error)
+	QueryOne(query string, args ...interface{}) (*T, error)
+	Insert(query string, args ...interface{}) error
+}
+
+type QueryImplementer[T any] struct {
+	DataAccessor database.DataAccessor
+}
+
+func (q *QueryImplementer[T]) Query(query string, args ...interface{}) ([]T, error) {
 	var results []T
-	err := pgxscan.Select(context.Background(), database.DataAccessorInstance.GetConnection(), &results, query, args...)
+	err := pgxscan.Select(context.Background(), q.DataAccessor.GetConnection(), &results, query, args...)
 	return results, err
 }
 
-func QueryOne[T any](query string, args ...interface{}) (*T, error) {
-	rows, err := Query[T](query, args...)
+func (q *QueryImplementer[T]) QueryOne(query string, args ...interface{}) (*T, error) {
+	rows, err := q.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -24,7 +34,7 @@ func QueryOne[T any](query string, args ...interface{}) (*T, error) {
 	return &rows[0], nil
 }
 
-func Insert[T any](query string, args ...interface{}) error {
-	_, err := database.DataAccessorInstance.GetConnection().Exec(context.Background(), query, args...)
+func (q *QueryImplementer[T]) Insert(query string, args ...interface{}) error {
+	_, err := q.DataAccessor.GetConnection().Exec(context.Background(), query, args...)
 	return err
 }

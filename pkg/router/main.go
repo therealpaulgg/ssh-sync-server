@@ -16,7 +16,9 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwe"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/rs/zerolog/log"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/middleware"
 )
 
@@ -32,9 +34,10 @@ func Router() chi.Router {
 		fmt.Fprintln(w, "Hello, world!")
 	})
 	r.Get("/users/{username}", func(w http.ResponseWriter, r *http.Request) {
+		q := &query.QueryImplementer[models.User]{DataAccessor: database.DataAccessorInstance}
 		user := models.User{}
 		user.Username = chi.URLParam(r, "username")
-		err := user.GetUserByUsername()
+		err := user.GetUserByUsername(q)
 		if errors.Is(err, sql.ErrNoRows) {
 			w.WriteHeader(http.StatusNotFound)
 			return
@@ -46,6 +49,7 @@ func Router() chi.Router {
 		fmt.Fprintln(w, user)
 	})
 	r.Post("/users", func(w http.ResponseWriter, r *http.Request) {
+		q := &query.QueryImplementer[models.User]{DataAccessor: database.DataAccessorInstance}
 		var userDto UserDto
 		err := json.NewDecoder(r.Body).Decode(&userDto)
 		if err != nil {
@@ -54,7 +58,7 @@ func Router() chi.Router {
 		}
 		user := models.User{}
 		user.Username = userDto.Username
-		err = user.CreateUser()
+		err = user.CreateUser(q)
 		if errors.Is(err, models.ErrUserAlreadyExists) {
 			w.WriteHeader(http.StatusConflict)
 			return

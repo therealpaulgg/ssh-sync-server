@@ -14,8 +14,10 @@ type User struct {
 
 var ErrUserAlreadyExists = errors.New("user already exists")
 
-func (u *User) GetUser() error {
-	user, err := query.QueryOne[User]("select * from users where id = $1", u.ID)
+var queryAccessor query.QueryThing[User] = &query.QueryImplementer[User]{}
+
+func (u *User) GetUser(q query.QueryThing[User]) error {
+	user, err := q.QueryOne("select * from users where id = $1", u.ID)
 	if err != nil {
 		return err
 	}
@@ -27,8 +29,8 @@ func (u *User) GetUser() error {
 	return nil
 }
 
-func (u *User) GetUserByUsername() error {
-	user, err := query.QueryOne[User]("select * from users where username = $1", u.Username)
+func (u *User) GetUserByUsername(q query.QueryThing[User]) error {
+	user, err := q.QueryOne("select * from users where username = $1", u.Username)
 	if err != nil {
 		return err
 	}
@@ -40,8 +42,8 @@ func (u *User) GetUserByUsername() error {
 	return nil
 }
 
-func (u *User) CreateUser() error {
-	existingUser, err := query.QueryOne[User]("select * from users where username = $1", u.Username)
+func (u *User) CreateUser(q query.QueryThing[User]) error {
+	existingUser, err := q.QueryOne("select * from users where username = $1", u.Username)
 	if err != nil {
 		return err
 	}
@@ -49,7 +51,7 @@ func (u *User) CreateUser() error {
 	if existingUser != nil {
 		return ErrUserAlreadyExists
 	}
-	user, err := query.QueryOne[User]("insert into users (username) values ($1) returning *", u.Username)
+	user, err := q.QueryOne("insert into users (username) values ($1) returning *", u.Username)
 	if err != nil {
 		return err
 	}
