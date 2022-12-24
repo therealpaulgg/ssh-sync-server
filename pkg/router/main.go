@@ -1,19 +1,28 @@
 package router
 
 import (
+	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
+
 	"net/http"
 	"os"
 	"os/user"
 	"path"
 
+	"github.com/go-chi/chi"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwe"
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/rs/zerolog/log"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/middleware"
-
-	"github.com/go-chi/chi"
 )
+
+type UserDto struct {
+	Username string `json:"username"`
+}
 
 func Router() chi.Router {
 	r := chi.NewRouter()
@@ -21,6 +30,41 @@ func Router() chi.Router {
 	r.Use(middleware.Log)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Hello, world!")
+	})
+	r.Get("/users/{username}", func(w http.ResponseWriter, r *http.Request) {
+		user := models.User{}
+		user.Username = chi.URLParam(r, "username")
+		err := user.GetUserByUsername()
+		if errors.Is(err, sql.ErrNoRows) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		fmt.Fprintln(w, user)
+	})
+	r.Post("/users", func(w http.ResponseWriter, r *http.Request) {
+		var userDto UserDto
+		err := json.NewDecoder(r.Body).Decode(&userDto)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		user := models.User{}
+		user.Username = userDto.Username
+		err = user.CreateUser()
+		if errors.Is(err, models.ErrUserAlreadyExists) {
+			w.WriteHeader(http.StatusConflict)
+			return
+		}
+		if err != nil {
+			log.Err(err).Msg("error creating user")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		fmt.Fprintln(w, user)
 	})
 	r.Get("/token", func(w http.ResponseWriter, r *http.Request) {
 		// In order for a user to successfully authenticate themselves, we can use public key cryptography.
