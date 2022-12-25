@@ -2,15 +2,15 @@ package routes
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi"
-	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
 )
 
 type UserDto struct {
@@ -19,6 +19,10 @@ type UserDto struct {
 
 func UserRoutes(i *do.Injector) chi.Router {
 	r := chi.NewRouter()
+	do.Provide(i, func(i *do.Injector) (query.QueryService[models.User], error) {
+		dataAccessor := do.MustInvoke[database.DataAccessor](i)
+		return &query.QueryServiceImpl[models.User]{DataAccessor: dataAccessor}, nil
+	})
 	r.Get("/{username}", func(w http.ResponseWriter, r *http.Request) {
 		user := models.User{}
 		user.Username = chi.URLParam(r, "username")
@@ -33,26 +37,6 @@ func UserRoutes(i *do.Injector) chi.Router {
 		}
 		fmt.Fprintln(w, user)
 	})
-	r.Post("/", func(w http.ResponseWriter, r *http.Request) {
-		var userDto UserDto
-		err := json.NewDecoder(r.Body).Decode(&userDto)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		user := models.User{}
-		user.Username = userDto.Username
-		err = user.CreateUser(i)
-		if errors.Is(err, models.ErrUserAlreadyExists) {
-			w.WriteHeader(http.StatusConflict)
-			return
-		}
-		if err != nil {
-			log.Err(err).Msg("error creating user")
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		fmt.Fprintln(w, user)
-	})
+
 	return r
 }

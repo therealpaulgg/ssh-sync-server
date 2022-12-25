@@ -14,9 +14,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
 	"github.com/samber/do"
-	"github.com/therealpaulgg/ssh-sync-server/pkg/database"
-	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
-	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/middleware"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/router/routes"
 )
@@ -26,15 +23,12 @@ func Router(i *do.Injector) chi.Router {
 	baseRouter.Use(middleware.Log)
 
 	apiV1Router := chi.NewRouter()
-	apiV1Router.Use(middleware.Auth)
 	apiV1Router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Hello, world!")
 	})
-	do.Provide(i, func(i *do.Injector) (query.QueryService[models.User], error) {
-		dataAccessor := do.MustInvoke[database.DataAccessor](i)
-		return &query.QueryServiceImpl[models.User]{DataAccessor: dataAccessor}, nil
-	})
 	apiV1Router.Mount("/users", routes.UserRoutes(i))
+	apiV1Router.Mount("/setup", routes.SetupRoutes(i))
+	apiV1Router.Mount("/machines", routes.MachineRoutes(i))
 
 	apiV1Router.Get("/token", func(w http.ResponseWriter, r *http.Request) {
 		// In order for a user to successfully authenticate themselves, we can use public key cryptography.

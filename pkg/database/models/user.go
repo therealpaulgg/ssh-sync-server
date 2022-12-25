@@ -4,13 +4,14 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/samber/do"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
 )
 
 type User struct {
-	ID       string `json:"id" db:"id"`
-	Username string `json:"username" db:"username"`
+	ID       uuid.UUID `json:"id" db:"id"`
+	Username string    `json:"username" db:"username"`
 }
 
 var ErrUserAlreadyExists = errors.New("user already exists")
