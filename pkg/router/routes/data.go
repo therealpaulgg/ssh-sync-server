@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
+	"github.com/samber/lo"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/middleware"
 )
@@ -64,18 +65,17 @@ func DataRoutes(i *do.Injector) chi.Router {
 			return
 		}
 		dto := DataDto{
-			ID:        user.ID,
-			Username:  user.Username,
-			Keys:      make([]KeyDto, len(user.Keys)),
+			ID:       user.ID,
+			Username: user.Username,
+			Keys: lo.Map(user.Keys, func(key models.SshKey, index int) KeyDto {
+				return KeyDto{
+					ID:       key.ID,
+					UserID:   key.UserID,
+					Filename: key.Filename,
+					Data:     key.Data,
+				}
+			}),
 			MasterKey: masterKey.Data,
-		}
-		for i, key := range user.Keys {
-			dto.Keys[i] = KeyDto{
-				ID:       key.ID,
-				UserID:   key.UserID,
-				Filename: key.Filename,
-				Data:     key.Data,
-			}
 		}
 		json.NewEncoder(w).Encode(dto)
 	})
@@ -109,15 +109,14 @@ func DataRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		var sshConfigData []models.SshConfig
-		for _, conf := range sshConfig {
-			sshConfigData = append(sshConfigData, models.SshConfig{
+		sshConfigData := lo.Map(sshConfig, func(conf SshConfigDto, i int) models.SshConfig {
+			return models.SshConfig{
 				UserID:    user.ID,
 				MachineID: machine.ID,
 				Host:      conf.Host,
 				Values:    conf.Values,
-			})
-		}
+			}
+		})
 		user.Config = sshConfigData
 		err = user.AddAndUpdateConfig(i)
 		if err != nil {
@@ -125,8 +124,7 @@ func DataRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		files := []*multipart.FileHeader{}
-
+		var files []*multipart.FileHeader
 		for _, filelist := range m.File {
 			files = append(files, filelist...)
 		}
