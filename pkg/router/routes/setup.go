@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi"
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
@@ -31,12 +33,28 @@ func SetupRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		file, header, err := r.FormFile("key")
+		file, _, err := r.FormFile("key")
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		fileBytes, err := ioutil.ReadAll(file)
+		if err != nil {
+			log.Err(err).Msg("error reading file")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		// validate that it is in fact a public key
+		key, err := jwk.ParseKey(fileBytes, jwk.WithPEM(true))
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		keyType := key.KeyType()
+		if keyType != jwa.EC {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		user := models.User{}
 		user.Username = userDto.Username
 		err = user.CreateUser(i)
@@ -52,6 +70,7 @@ func SetupRoutes(i *do.Injector) chi.Router {
 		machine := models.Machine{}
 		machine.Name = machineName
 		machine.UserID = user.ID
+		machine.PublicKey = fileBytes
 		err = machine.CreateMachine(i)
 		if errors.Is(err, models.ErrMachineAlreadyExists) {
 			w.WriteHeader(http.StatusConflict)
@@ -61,11 +80,6 @@ func SetupRoutes(i *do.Injector) chi.Router {
 			log.Err(err).Msg("error creating machine")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
-		}
-		key := models.SshKey{
-			UserID:   user.ID,
-			Filename: header.Filename,
-			Data:     fileBytes,
 		}
 	})
 	return r

@@ -3,45 +3,79 @@ package middleware
 import (
 	"fmt"
 	"net/http"
-	"os"
-	"os/user"
-	"path"
+
+	"regexp"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/rs/zerolog/log"
+	"github.com/samber/do"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 )
 
-// Auth middleware: parse a JWT signed with ES512 and verify it with the public key
-func Auth(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// get the token from the request
-		// TODO do not use filesystem, this is just for testing
-		u, err := user.Current()
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		data, err := os.ReadFile(path.Join(u.HomeDir, "/.ssh-sync/keypair.pub"))
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		key, err := jwk.ParseKey(data, jwk.WithPEM(true))
-		if err != nil {
-			log.Error().Msg(err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		_, err = jwt.ParseRequest(r, jwt.WithKey(jwa.ES512, key))
-		if err != nil {
-			log.Debug().Msg(fmt.Sprintf("Error parsing JWT: %s", err))
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		// token is valid
-		next.ServeHTTP(w, r)
-	})
+func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			re := regexp.MustCompile(`Bearer (.*)`)
+			tokenString := re.FindStringSubmatch(authHeader)[1]
+			if tokenString == "" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			token, err := jwt.ParseString(tokenString, jwt.WithVerify(false))
+			if err != nil {
+				log.Debug().Msg(fmt.Sprintf("Error parsing JWT: %s", err))
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			username, ok := token.PrivateClaims()["username"].(string)
+			if username == "" || !ok {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			machine, ok := token.PrivateClaims()["machine"].(string)
+			if machine == "" || !ok {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			user := &models.User{}
+			user.Username = username
+			err = user.GetUserByUsername(i)
+			if err != nil {
+				log.Debug().Err(err).Msg("couldnt get user")
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			m := &models.Machine{}
+			m.UserID = user.ID
+			m.Name = machine
+			err = m.GetMachineByNameAndUser(i)
+			if err != nil {
+				log.Debug().Err(err).Msg("couldnt get machine")
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			key, err := jwk.ParseKey(m.PublicKey, jwk.WithPEM(true))
+			if err != nil {
+				log.Error().Msg(err.Error())
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			_, err = jwt.ParseRequest(r, jwt.WithKey(jwa.ES512, key))
+			if err != nil {
+				log.Debug().Msg(fmt.Sprintf("Error parsing JWT: %s", err))
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
+
+// Auth middleware: parse a JWT signed with ES512 and verify it with the public key

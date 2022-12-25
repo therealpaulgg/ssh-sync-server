@@ -12,6 +12,7 @@ import (
 type User struct {
 	ID       uuid.UUID `json:"id" db:"id"`
 	Username string    `json:"username" db:"username"`
+	Keys    []SshKey  `json:"keys"`
 }
 
 var ErrUserAlreadyExists = errors.New("user already exists")
@@ -63,5 +64,21 @@ func (u *User) CreateUser(i *do.Injector) error {
 	}
 	u.ID = user.ID
 	u.Username = user.Username
+	return nil
+}
+
+func (u *User) DeleteUser(i *do.Injector) error {
+	q := do.MustInvoke[query.QueryService[User]](i)
+	_, err := q.QueryOne("delete from users where id = $1", u.ID)
+	return err
+}
+
+func (u *User) GetUserKeys(i *do.Injector) error {
+	q := do.MustInvoke[query.QueryService[SshKey]](i)
+	keys, err := q.Query("select * from ssh_keys where user_id = $1", u.ID)
+	if err != nil {
+		return err
+	}
+	u.Keys = keys
 	return nil
 }

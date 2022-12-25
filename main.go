@@ -6,13 +6,13 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
-	"github.com/therealpaulgg/ssh-sync-server/pkg/database"
+	"github.com/therealpaulgg/ssh-sync-server/internal/setup"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/router"
 )
 
 func main() {
 	injector := do.New()
-	do.Provide(injector, database.NewDataAccessorService)
+	setup.SetupServices(injector)
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal().Err(err).Msg("Error loading .env file")

@@ -29,6 +29,7 @@ func Router(i *do.Injector) chi.Router {
 	apiV1Router.Mount("/users", routes.UserRoutes(i))
 	apiV1Router.Mount("/setup", routes.SetupRoutes(i))
 	apiV1Router.Mount("/machines", routes.MachineRoutes(i))
+	apiV1Router.Mount("/data", routes.DataRoutes(i))
 
 	apiV1Router.Get("/token", func(w http.ResponseWriter, r *http.Request) {
 		// In order for a user to successfully authenticate themselves, we can use public key cryptography.
