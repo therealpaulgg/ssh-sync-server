@@ -17,10 +17,11 @@ import (
 )
 
 type DataDto struct {
-	ID        uuid.UUID `json:"id"`
-	Username  string    `json:"username"`
-	Keys      []KeyDto  `json:"keys"`
-	MasterKey []byte    `json:"master_key"`
+	ID        uuid.UUID      `json:"id"`
+	Username  string         `json:"username"`
+	Keys      []KeyDto       `json:"keys"`
+	MasterKey []byte         `json:"master_key"`
+	SshConfig []SshConfigDto `json:"ssh_config"`
 }
 
 type KeyDto struct {
@@ -76,6 +77,12 @@ func DataRoutes(i *do.Injector) chi.Router {
 				}
 			}),
 			MasterKey: masterKey.Data,
+			SshConfig: lo.Map(user.Config, func(conf models.SshConfig, index int) SshConfigDto {
+				return SshConfigDto{
+					Host:   conf.Host,
+					Values: conf.Values,
+				}
+			}),
 		}
 		json.NewEncoder(w).Encode(dto)
 	})
