@@ -20,7 +20,7 @@ var ErrKeyAlreadyExists = errors.New("key already exists")
 
 func (m *MasterKey) GetMasterKey(i *do.Injector) error {
 	q := do.MustInvoke[query.QueryService[MasterKey]](i)
-	masterKey, err := q.QueryOne("select * from master_keys where machine_id = $1 and user_id = $2", m.ID)
+	masterKey, err := q.QueryOne("select * from master_keys where machine_id = $1 and user_id = $2", m.MachineID, m.UserID)
 	if err != nil {
 		return err
 	}

@@ -12,7 +12,7 @@ import (
 type User struct {
 	ID       uuid.UUID `json:"id" db:"id"`
 	Username string    `json:"username" db:"username"`
-	Keys    []SshKey  `json:"keys"`
+	Keys     []SshKey  `json:"keys"`
 }
 
 var ErrUserAlreadyExists = errors.New("user already exists")
@@ -80,5 +80,16 @@ func (u *User) GetUserKeys(i *do.Injector) error {
 		return err
 	}
 	u.Keys = keys
+	return nil
+}
+
+func (u *User) AddAndUpdateKeys(i *do.Injector) error {
+	for _, key := range u.Keys {
+		key.UserID = u.ID
+		err := key.UpsertSshKey(i)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }

@@ -1,38 +1,124 @@
 package routes
 
 import (
-	"database/sql"
+	"encoding/json"
 	"errors"
-	"fmt"
+	"mime/multipart"
 	"net/http"
 
 	"github.com/go-chi/chi"
+	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/middleware"
 )
 
 type DataDto struct {
-	Username string `json:"username"`
+	ID        uuid.UUID `json:"id"`
+	Username  string    `json:"username"`
+	Keys      []KeyDto  `json:"keys"`
+	MasterKey []byte    `json:"master_key"`
+}
+
+type KeyDto struct {
+	ID       uuid.UUID `json:"id"`
+	UserID   uuid.UUID `json:"user_id"`
+	Filename string    `json:"filename"`
+	Data     []byte    `json:"data"`
 }
 
 func DataRoutes(i *do.Injector) chi.Router {
 	r := chi.NewRouter()
 	r.Use(middleware.ConfigureAuth(i))
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		user := models.User{}
-		user.Username = chi.URLParam(r, "username")
-		err := user.GetUserByUsername(i)
-		if errors.Is(err, sql.ErrNoRows) {
-			w.WriteHeader(http.StatusNotFound)
+		user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+		if !ok {
+			log.Err(errors.New("could not get user from context"))
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		machine, ok := r.Context().Value(middleware.MachineContextKey).(*models.Machine)
+		if !ok {
+			log.Err(errors.New("could not get machine from context"))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		err := user.GetUserKeys(i)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		fmt.Fprintln(w, user)
+		masterKey := models.MasterKey{}
+		masterKey.UserID = user.ID
+		masterKey.MachineID = machine.ID
+		err = masterKey.GetMasterKey(i)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		dto := DataDto{
+			ID:        user.ID,
+			Username:  user.Username,
+			Keys:      make([]KeyDto, len(user.Keys)),
+			MasterKey: masterKey.Data,
+		}
+		for i, key := range user.Keys {
+			dto.Keys[i] = KeyDto{
+				ID:       key.ID,
+				UserID:   key.UserID,
+				Filename: key.Filename,
+				Data:     key.Data,
+			}
+		}
+		json.NewEncoder(w).Encode(dto)
 	})
-
+	r.Post("/", func(w http.ResponseWriter, r *http.Request) {
+		user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+		if !ok {
+			log.Err(errors.New("could not get user from context"))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		err := r.ParseMultipartForm(32 << 20)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		files := []*multipart.FileHeader{}
+		m := r.MultipartForm
+		for _, filelist := range m.File {
+			files = append(files, filelist...)
+		}
+		if len(files) == 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		for i := range files {
+			file, err := files[i].Open()
+			if err != nil {
+				log.Err(err).Msg("could not open file")
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			defer file.Close()
+			user.Keys = append(user.Keys, models.SshKey{
+				UserID:   user.ID,
+				Filename: files[i].Filename,
+				Data:     make([]byte, files[i].Size),
+			})
+			_, err = file.Read(user.Keys[i].Data)
+			if err != nil {
+				log.Err(err).Msg("could not open file")
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
+		err = user.AddAndUpdateKeys(i)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	})
 	return r
 }

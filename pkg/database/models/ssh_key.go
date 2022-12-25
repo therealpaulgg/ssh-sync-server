@@ -15,7 +15,20 @@ type SshKey struct {
 
 func (s *SshKey) CreateSshKey(i *do.Injector) error {
 	q := do.MustInvoke[query.QueryService[SshKey]](i)
-	key, err := q.QueryOne("INSERT INTO ssh_keys (user_id, filename, data) VALUES ($1, $2, $3) RETURNING id", s.UserID, s.Filename, s.Data)
+	key, err := q.QueryOne("INSERT INTO ssh_keys (user_id, filename, data) VALUES ($1, $2, $3) RETURNING *", s.UserID, s.Filename, s.Data)
+	if err != nil {
+		return err
+	}
+	s.ID = key.ID
+	s.UserID = key.UserID
+	s.Filename = key.Filename
+	s.Data = key.Data
+	return nil
+}
+
+func (s *SshKey) UpsertSshKey(i *do.Injector) error {
+	q := do.MustInvoke[query.QueryService[SshKey]](i)
+	key, err := q.QueryOne("INSERT INTO ssh_keys (user_id, filename, data) VALUES ($1, $2, $3) ON CONFLICT (user_id, filename) DO UPDATE SET data = $3 RETURNING *", s.UserID, s.Filename, s.Data)
 	if err != nil {
 		return err
 	}

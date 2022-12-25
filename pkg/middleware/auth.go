@@ -6,6 +6,8 @@ import (
 
 	"regexp"
 
+	"context"
+
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
@@ -13,6 +15,12 @@ import (
 	"github.com/samber/do"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 )
+
+type UserKey string
+type MachineKey string
+
+var UserContextKey = UserKey("user")
+var MachineContextKey = MachineKey("machine")
 
 func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -73,7 +81,9 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			next.ServeHTTP(w, r)
+			ctx := context.WithValue(r.Context(), UserContextKey, user)
+			ctx = context.WithValue(ctx, MachineContextKey, m)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
