@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/samber/do"
 )
 
 type DataAccessor interface {
@@ -32,10 +33,14 @@ func (d *DataAccessorImpl) Connect() error {
 	return nil
 }
 
-func (d *DataAccessorImpl) GetConnection() *pgx.Conn {
-	return d.Connection
+func NewDataAccessorService(i *do.Injector) (DataAccessor, error) {
+	accessor := &DataAccessorImpl{
+		Connection: nil,
+	}
+	err := accessor.Connect()
+	return accessor, err
 }
 
-var DataAccessorInstance DataAccessor = &DataAccessorImpl{
-	Connection: nil,
+func (d *DataAccessorImpl) GetConnection() *pgx.Conn {
+	return d.Connection
 }

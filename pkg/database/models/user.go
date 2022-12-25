@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/samber/do"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
 )
 
@@ -14,9 +15,8 @@ type User struct {
 
 var ErrUserAlreadyExists = errors.New("user already exists")
 
-var queryAccessor query.QueryThing[User] = &query.QueryImplementer[User]{}
-
-func (u *User) GetUser(q query.QueryThing[User]) error {
+func (u *User) GetUser(i *do.Injector) error {
+	q := do.MustInvoke[query.QueryService[User]](i)
 	user, err := q.QueryOne("select * from users where id = $1", u.ID)
 	if err != nil {
 		return err
@@ -29,7 +29,8 @@ func (u *User) GetUser(q query.QueryThing[User]) error {
 	return nil
 }
 
-func (u *User) GetUserByUsername(q query.QueryThing[User]) error {
+func (u *User) GetUserByUsername(i *do.Injector) error {
+	q := do.MustInvoke[query.QueryService[User]](i)
 	user, err := q.QueryOne("select * from users where username = $1", u.Username)
 	if err != nil {
 		return err
@@ -42,7 +43,8 @@ func (u *User) GetUserByUsername(q query.QueryThing[User]) error {
 	return nil
 }
 
-func (u *User) CreateUser(q query.QueryThing[User]) error {
+func (u *User) CreateUser(i *do.Injector) error {
+	q := do.MustInvoke[query.QueryService[User]](i)
 	existingUser, err := q.QueryOne("select * from users where username = $1", u.Username)
 	if err != nil {
 		return err
