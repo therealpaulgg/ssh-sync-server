@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"mime/multipart"
@@ -26,6 +27,11 @@ type KeyDto struct {
 	UserID   uuid.UUID `json:"user_id"`
 	Filename string    `json:"filename"`
 	Data     []byte    `json:"data"`
+}
+
+type SshConfigDto struct {
+	Host   string            `json:"host"`
+	Values map[string]string `json:"values"`
 }
 
 func DataRoutes(i *do.Injector) chi.Router {
@@ -80,13 +86,47 @@ func DataRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		machine, ok := r.Context().Value(middleware.MachineContextKey).(*models.Machine)
+		if !ok {
+			log.Err(errors.New("could not get machine from context"))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		err := r.ParseMultipartForm(32 << 20)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		files := []*multipart.FileHeader{}
 		m := r.MultipartForm
+		sshConfigDataRaw := r.FormValue("ssh_config")
+		if sshConfigDataRaw == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		var sshConfig []SshConfigDto
+		err = json.NewDecoder(bytes.NewBufferString(sshConfigDataRaw)).Decode(&sshConfig)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		var sshConfigData []models.SshConfig
+		for _, conf := range sshConfig {
+			sshConfigData = append(sshConfigData, models.SshConfig{
+				UserID:    user.ID,
+				MachineID: machine.ID,
+				Host:      conf.Host,
+				Values:    conf.Values,
+			})
+		}
+		user.Config = sshConfigData
+		err = user.AddAndUpdateConfig(i)
+		if err != nil {
+			log.Err(err).Msg("could not add config")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		files := []*multipart.FileHeader{}
+
 		for _, filelist := range m.File {
 			files = append(files, filelist...)
 		}
@@ -113,6 +153,11 @@ func DataRoutes(i *do.Injector) chi.Router {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
+		}
+		err = user.AddAndUpdateConfig(i)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 		err = user.AddAndUpdateKeys(i)
 		if err != nil {
