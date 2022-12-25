@@ -44,6 +44,11 @@ func SetupRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		masterKeyStr := r.FormValue("master_key")
+		if masterKeyStr == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		// validate that it is in fact a public key
 		key, err := jwk.ParseKey(fileBytes, jwk.WithPEM(true))
 		if err != nil {
@@ -78,6 +83,21 @@ func SetupRoutes(i *do.Injector) chi.Router {
 		}
 		if err != nil {
 			log.Err(err).Msg("error creating machine")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		// next, create master key
+		masterKey := models.MasterKey{}
+		masterKey.UserID = user.ID
+		masterKey.MachineID = machine.ID
+		masterKey.Data = []byte(masterKeyStr)
+		masterKey.CreateMasterKey(i)
+		if errors.Is(err, models.ErrKeyAlreadyExists) {
+			w.WriteHeader(http.StatusConflict)
+			return
+		}
+		if err != nil {
+			log.Err(err).Msg("error creating key")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}

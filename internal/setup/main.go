@@ -17,4 +17,8 @@ func SetupServices(i *do.Injector) {
 		dataAccessor := do.MustInvoke[database.DataAccessor](i)
 		return &query.QueryServiceImpl[models.User]{DataAccessor: dataAccessor}, nil
 	})
+	do.Provide(i, func(i *do.Injector) (query.QueryService[models.MasterKey], error) {
+		dataAccessor := do.MustInvoke[database.DataAccessor](i)
+		return &query.QueryServiceImpl[models.MasterKey]{DataAccessor: dataAccessor}, nil
+	})
 }
