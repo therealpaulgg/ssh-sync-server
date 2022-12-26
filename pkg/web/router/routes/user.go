@@ -11,10 +11,6 @@ import (
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 )
 
-type UserDto struct {
-	Username string `json:"username"`
-}
-
 func UserRoutes(i *do.Injector) chi.Router {
 	r := chi.NewRouter()
 	r.Get("/{username}", func(w http.ResponseWriter, r *http.Request) {

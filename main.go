@@ -7,7 +7,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
 	"github.com/therealpaulgg/ssh-sync-server/internal/setup"
-	"github.com/therealpaulgg/ssh-sync-server/pkg/router"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/router"
 )
 
 func main() {

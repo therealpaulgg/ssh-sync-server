@@ -8,33 +8,13 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi"
-	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
 	"github.com/samber/lo"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
-	"github.com/therealpaulgg/ssh-sync-server/pkg/middleware"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/dto"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
 )
-
-type DataDto struct {
-	ID        uuid.UUID      `json:"id"`
-	Username  string         `json:"username"`
-	Keys      []KeyDto       `json:"keys"`
-	MasterKey []byte         `json:"master_key"`
-	SshConfig []SshConfigDto `json:"ssh_config"`
-}
-
-type KeyDto struct {
-	ID       uuid.UUID `json:"id"`
-	UserID   uuid.UUID `json:"user_id"`
-	Filename string    `json:"filename"`
-	Data     []byte    `json:"data"`
-}
-
-type SshConfigDto struct {
-	Host   string            `json:"host"`
-	Values map[string]string `json:"values"`
-}
 
 func DataRoutes(i *do.Injector) chi.Router {
 	r := chi.NewRouter()
@@ -65,11 +45,11 @@ func DataRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		dto := DataDto{
+		dto := dto.DataDto{
 			ID:       user.ID,
 			Username: user.Username,
-			Keys: lo.Map(user.Keys, func(key models.SshKey, index int) KeyDto {
-				return KeyDto{
+			Keys: lo.Map(user.Keys, func(key models.SshKey, index int) dto.KeyDto {
+				return dto.KeyDto{
 					ID:       key.ID,
 					UserID:   key.UserID,
 					Filename: key.Filename,
@@ -77,8 +57,8 @@ func DataRoutes(i *do.Injector) chi.Router {
 				}
 			}),
 			MasterKey: masterKey.Data,
-			SshConfig: lo.Map(user.Config, func(conf models.SshConfig, index int) SshConfigDto {
-				return SshConfigDto{
+			SshConfig: lo.Map(user.Config, func(conf models.SshConfig, index int) dto.SshConfigDto {
+				return dto.SshConfigDto{
 					Host:   conf.Host,
 					Values: conf.Values,
 				}
@@ -110,13 +90,13 @@ func DataRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		var sshConfig []SshConfigDto
+		var sshConfig []dto.SshConfigDto
 		err = json.NewDecoder(bytes.NewBufferString(sshConfigDataRaw)).Decode(&sshConfig)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		sshConfigData := lo.Map(sshConfig, func(conf SshConfigDto, i int) models.SshConfig {
+		sshConfigData := lo.Map(sshConfig, func(conf dto.SshConfigDto, i int) models.SshConfig {
 			return models.SshConfig{
 				UserID:    user.ID,
 				MachineID: machine.ID,

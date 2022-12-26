@@ -11,12 +11,16 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/dto"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/live"
 )
 
 func SetupRoutes(i *do.Injector) chi.Router {
 	r := chi.NewRouter()
 	r.Post("/", func(w http.ResponseWriter, r *http.Request) {
-		var userDto UserDto
+		// TODO need to introduce the concept of a transaction in case one of the DB operations fail
+		// We don't want a user that has no machines - they would be unable to login
+		var userDto dto.UserDto
 		err := r.ParseMultipartForm(32 << 20)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -98,6 +102,59 @@ func SetupRoutes(i *do.Injector) chi.Router {
 		}
 		if err != nil {
 			log.Err(err).Msg("error creating key")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	})
+	r.Get("/existing", func(w http.ResponseWriter, r *http.Request) {
+
+		// err := r.ParseMultipartForm(32 << 20)
+		// if err != nil {
+		// 	w.WriteHeader(http.StatusBadRequest)
+		// 	return
+		// }
+		// username := r.FormValue("username")
+		// if username == "" {
+		// 	w.WriteHeader(http.StatusBadRequest)
+		// 	return
+		// }
+		// userDto.Username = username
+		// machineName := r.FormValue("machine_name")
+		// if machineName == "" {
+		// 	w.WriteHeader(http.StatusBadRequest)
+		// 	return
+		// }
+		// file, _, err := r.FormFile("key")
+		// if err != nil {
+		// 	w.WriteHeader(http.StatusBadRequest)
+		// 	return
+		// }
+		// fileBytes, err := ioutil.ReadAll(file)
+		// if err != nil {
+		// 	log.Err(err).Msg("error reading file")
+		// 	w.WriteHeader(http.StatusInternalServerError)
+		// 	return
+		// }
+		// key, err := jwk.ParseKey(fileBytes, jwk.WithPEM(true))
+		// if err != nil {
+		// 	w.WriteHeader(http.StatusBadRequest)
+		// 	return
+		// }
+		// keyType := key.KeyType()
+		// if keyType != jwa.EC {
+		// 	w.WriteHeader(http.StatusBadRequest)
+		// 	return
+		// }
+		// user := models.User{}
+		// user.Username = userDto.Username
+		// err = user.GetUserByUsername(i)
+		// if errors.Is(err, sql.ErrNoRows) {
+		// 	w.WriteHeader(http.StatusNotFound)
+		// 	return
+		// }
+		err := live.NewMachineChallenge(i, r, w)
+		if err != nil {
+			log.Err(err).Msg("error creating challenge")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}

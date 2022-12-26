@@ -14,8 +14,8 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
 	"github.com/samber/do"
-	"github.com/therealpaulgg/ssh-sync-server/pkg/middleware"
-	"github.com/therealpaulgg/ssh-sync-server/pkg/router/routes"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/router/routes"
 )
 
 func Router(i *do.Injector) chi.Router {
