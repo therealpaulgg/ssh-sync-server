@@ -36,8 +36,8 @@ type ChallengeResponse struct {
 type Something struct {
 	Username          string
 	ChallengeAccepted chan bool
-	PublicKeyChannel  chan []byte
-	MasterKeyChannel  chan []byte
+	ChallengerChannel chan []byte
+	ResponderChannel  chan []byte
 }
 
 var ChallengeResponseChannel = make(chan ChallengeResponse)
@@ -90,7 +90,7 @@ func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.Res
 
 	// need a channel that both threads can access so that machine B can send public key to machine A
 	// and machine A can send back encrypted master key
-	key := <-chalChan.PublicKeyChannel
+	key := <-chalChan.ChallengerChannel
 	masterKey := models.MasterKey{
 		UserID:    user.ID,
 		MachineID: machine.ID,
@@ -119,7 +119,7 @@ func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.Res
 		log.Err(err).Msg("Error reading client binary")
 		return
 	}
-	chalChan.MasterKeyChannel <- encMasterKey
+	chalChan.ResponderChannel <- encMasterKey
 }
 
 func NewMachineChallenge(i *do.Injector, r *http.Request, w http.ResponseWriter) error {
@@ -203,14 +203,14 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	ChallengeResponseDict["challenge-phrase"] = Something{
 		Username:          user.Username,
 		ChallengeAccepted: make(chan bool),
-		PublicKeyChannel:  make(chan []byte),
-		MasterKeyChannel:  make(chan []byte),
+		ChallengerChannel: make(chan []byte),
+		ResponderChannel:  make(chan []byte),
 	}
 	defer func() {
 		ChallengeResponseDict["challenge-phrase"].ChallengeAccepted <- false
 		close(ChallengeResponseDict["challenge-phrase"].ChallengeAccepted)
-		close(ChallengeResponseDict["challenge-phrase"].PublicKeyChannel)
-		close(ChallengeResponseDict["challenge-phrase"].MasterKeyChannel)
+		close(ChallengeResponseDict["challenge-phrase"].ChallengerChannel)
+		close(ChallengeResponseDict["challenge-phrase"].ResponderChannel)
 		delete(ChallengeResponseDict, "challenge-phrase")
 	}()
 	timer := time.NewTimer(30 * time.Second)
@@ -245,8 +245,8 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		log.Err(err).Msg("Error reading client binary")
 		return
 	}
-	ChallengeResponseDict["challenge-phrase"].PublicKeyChannel <- pubkey
-	dat := <-ChallengeResponseDict["challenge-phrase"].MasterKeyChannel
+	ChallengeResponseDict["challenge-phrase"].ChallengerChannel <- pubkey
+	dat := <-ChallengeResponseDict["challenge-phrase"].ResponderChannel
 	machine.PublicKey = pubkey
 	err = machine.CreateMachine(i)
 	if err != nil {
