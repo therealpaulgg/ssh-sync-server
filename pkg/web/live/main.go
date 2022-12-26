@@ -86,7 +86,6 @@ func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.Res
 	// need a channel that both threads can access so that machine B can send public key to machine A
 	// and machine A can send back encrypted master key
 	key := <-chalChan.PublicKeyChannel
-	fmt.Println("I got the key")
 	masterKey := models.MasterKey{
 		UserID:    user.ID,
 		MachineID: machine.ID,
@@ -115,7 +114,6 @@ func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.Res
 		log.Err(err).Msg("Error reading client binary")
 		return
 	}
-	fmt.Println("I got the encrypted master key")
 	chalChan.MasterKeyChannel <- encMasterKey
 }
 
@@ -243,5 +241,21 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	}
 	ChallengeResponseDict["challenge-phrase"].PublicKeyChannel <- pubkey
 	dat := <-ChallengeResponseDict["challenge-phrase"].MasterKeyChannel
-	wsutil.WriteServerBinary(conn, dat)
+	machine.PublicKey = pubkey
+	err = machine.CreateMachine(i)
+	if err != nil {
+		log.Err(err).Msg("Error creating machine")
+		return
+	}
+	masterKey := models.MasterKey{
+		UserID:    user.ID,
+		MachineID: machine.ID,
+		Data:      dat,
+	}
+	err = masterKey.CreateMasterKey(i)
+	if err != nil {
+		log.Err(err).Msg("Error creating master key")
+		return
+	}
+	wsutil.WriteServerBinary(conn, []byte("Everything is done, you can now use ssh-sync"))
 }
