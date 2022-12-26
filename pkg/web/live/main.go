@@ -17,6 +17,7 @@ import (
 	"github.com/samber/do"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/dto"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
 )
 
 // Computer A creates a live connection.
@@ -35,6 +36,7 @@ type ChallengeResponse struct {
 type Something struct {
 	ChallengeAccepted chan bool
 	PublicKeyChannel  chan []byte
+	MasterKeyChannel  chan []byte
 }
 
 var ChallengeResponseChannel = make(chan ChallengeResponse)
@@ -52,19 +54,29 @@ func MachineChallengeResponse(i *do.Injector, r *http.Request, w http.ResponseWr
 func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.ResponseWriter, c *net.Conn) {
 	conn := *c
 	defer conn.Close()
-	var dto dto.ChallengeResponseDto
+	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+	if !ok {
+		log.Warn().Msg("Could not get user from context")
+		return
+	}
+	machine, ok := r.Context().Value(middleware.MachineContextKey).(*models.Machine)
+	if !ok {
+		log.Warn().Msg("Could not get machine from context")
+		return
+	}
+	var foo dto.ChallengeResponseDto
 	msg, err := wsutil.ReadClientBinary(conn)
 	if err != nil {
 		log.Err(err).Msg("Error reading client binary")
 		return
 	}
 	reader := bytes.NewReader(msg)
-	err = json.NewDecoder(reader).Decode(&dto)
+	err = json.NewDecoder(reader).Decode(&foo)
 	if err != nil {
 		log.Err(err).Msg("Error decoding json")
 		return
 	}
-	chalChan, ok := ChallengeResponseDict[dto.Challenge]
+	chalChan, ok := ChallengeResponseDict[foo.Challenge]
 	if !ok {
 		log.Warn().Msg("Could not find challenge in dict")
 		return
@@ -75,11 +87,36 @@ func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.Res
 	// and machine A can send back encrypted master key
 	key := <-chalChan.PublicKeyChannel
 	fmt.Println("I got the key")
-	err = wsutil.WriteServerBinary(conn, key)
+	masterKey := models.MasterKey{
+		UserID:    user.ID,
+		MachineID: machine.ID,
+	}
+	err = masterKey.GetMasterKey(i)
+	if err != nil {
+		log.Err(err).Msg("Error getting master key")
+		return
+	}
+	keys := dto.ChallengeSuccessEncryptedKeyDto{
+		PublicKey:          key,
+		EncryptedMasterKey: masterKey.Data,
+	}
+	b, err := json.Marshal(keys)
+	if err != nil {
+		log.Err(err).Msg("Error marshaling JSON")
+		return
+	}
+	err = wsutil.WriteServerBinary(conn, b)
 	if err != nil {
 		log.Err(err).Msg("Error writing server binary")
 		return
 	}
+	encMasterKey, err := wsutil.ReadClientBinary(conn)
+	if err != nil {
+		log.Err(err).Msg("Error reading client binary")
+		return
+	}
+	fmt.Println("I got the encrypted master key")
+	chalChan.MasterKeyChannel <- encMasterKey
 }
 
 func NewMachineChallenge(i *do.Injector, r *http.Request, w http.ResponseWriter) error {
@@ -163,17 +200,20 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	ChallengeResponseDict["challenge-phrase"] = Something{
 		ChallengeAccepted: make(chan bool),
 		PublicKeyChannel:  make(chan []byte),
+		MasterKeyChannel:  make(chan []byte),
 	}
 	defer func() {
 		ChallengeResponseDict["challenge-phrase"].ChallengeAccepted <- false
 		close(ChallengeResponseDict["challenge-phrase"].ChallengeAccepted)
 		close(ChallengeResponseDict["challenge-phrase"].PublicKeyChannel)
+		close(ChallengeResponseDict["challenge-phrase"].MasterKeyChannel)
 		delete(ChallengeResponseDict, "challenge-phrase")
 	}()
 	timer := time.NewTimer(30 * time.Second)
 	go func() {
 		for {
 			select {
+			// this doesnt seem to be working....
 			case <-timer.C:
 				ChallengeResponseDict["challenge-phrase"].ChallengeAccepted <- false
 				return
@@ -186,9 +226,22 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		}
 	}()
 	challengeResult := <-ChallengeResponseDict["challenge-phrase"].ChallengeAccepted
+
 	if !challengeResult {
+		fmt.Println("connection killed")
 		return
 	}
-	// TODO receive real public key
-	ChallengeResponseDict["challenge-phrase"].PublicKeyChannel <- []byte("public key")
+	err = wsutil.WriteServerBinary(conn, []byte("challenge-accepted"))
+	if err != nil {
+		log.Err(err).Msg("Error writing challenge accepted")
+		return
+	}
+	pubkey, err := wsutil.ReadClientBinary(conn)
+	if err != nil {
+		log.Err(err).Msg("Error reading client binary")
+		return
+	}
+	ChallengeResponseDict["challenge-phrase"].PublicKeyChannel <- pubkey
+	dat := <-ChallengeResponseDict["challenge-phrase"].MasterKeyChannel
+	wsutil.WriteServerBinary(conn, dat)
 }

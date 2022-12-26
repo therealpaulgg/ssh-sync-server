@@ -13,6 +13,7 @@ import (
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/dto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/live"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
 )
 
 func SetupRoutes(i *do.Injector) chi.Router {
@@ -106,6 +107,17 @@ func SetupRoutes(i *do.Injector) chi.Router {
 			return
 		}
 	})
+	ch := chi.NewRouter()
+	ch.Use(middleware.ConfigureAuth(i))
+	ch.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		err := live.MachineChallengeResponse(i, r, w)
+		if err != nil {
+			log.Err(err).Msg("error with challenge response creation")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	})
+	r.Mount("/challenge", ch)
 	r.Get("/existing", func(w http.ResponseWriter, r *http.Request) {
 
 		// err := r.ParseMultipartForm(32 << 20)
