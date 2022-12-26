@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -207,7 +206,6 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		ResponderChannel:  make(chan []byte),
 	}
 	defer func() {
-		ChallengeResponseDict["challenge-phrase"].ChallengeAccepted <- false
 		close(ChallengeResponseDict["challenge-phrase"].ChallengeAccepted)
 		close(ChallengeResponseDict["challenge-phrase"].ChallengerChannel)
 		close(ChallengeResponseDict["challenge-phrase"].ResponderChannel)
@@ -217,7 +215,6 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	go func() {
 		for {
 			select {
-			// this doesnt seem to be working....
 			case <-timer.C:
 				ChallengeResponseDict["challenge-phrase"].ChallengeAccepted <- false
 				return
@@ -232,7 +229,7 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	challengeResult := <-ChallengeResponseDict["challenge-phrase"].ChallengeAccepted
 
 	if !challengeResult {
-		fmt.Println("connection killed")
+		// TODO better error message - need to ensure client can receive it too
 		return
 	}
 	err = wsutil.WriteServerBinary(conn, []byte("challenge-accepted"))
