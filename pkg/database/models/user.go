@@ -74,6 +74,16 @@ func (u *User) DeleteUser(i *do.Injector) error {
 	return err
 }
 
+func (u *User) GetUserConfig(i *do.Injector) error {
+	q := do.MustInvoke[query.QueryService[SshConfig]](i)
+	config, err := q.Query("select * from ssh_configs where user_id = $1", u.ID)
+	if err != nil {
+		return err
+	}
+	u.Config = config
+	return nil
+}
+
 func (u *User) GetUserKeys(i *do.Injector) error {
 	q := do.MustInvoke[query.QueryService[SshKey]](i)
 	keys, err := q.Query("select * from ssh_keys where user_id = $1", u.ID)

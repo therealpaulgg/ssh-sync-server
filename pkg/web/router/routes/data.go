@@ -37,6 +37,11 @@ func DataRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		err = user.GetUserConfig(i)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		masterKey := models.MasterKey{}
 		masterKey.UserID = user.ID
 		masterKey.MachineID = machine.ID
@@ -59,8 +64,9 @@ func DataRoutes(i *do.Injector) chi.Router {
 			MasterKey: masterKey.Data,
 			SshConfig: lo.Map(user.Config, func(conf models.SshConfig, index int) dto.SshConfigDto {
 				return dto.SshConfigDto{
-					Host:   conf.Host,
-					Values: conf.Values,
+					Host:         conf.Host,
+					Values:       conf.Values,
+					IdentityFile: conf.IdentityFile,
 				}
 			}),
 		}
@@ -98,10 +104,11 @@ func DataRoutes(i *do.Injector) chi.Router {
 		}
 		sshConfigData := lo.Map(sshConfig, func(conf dto.SshConfigDto, i int) models.SshConfig {
 			return models.SshConfig{
-				UserID:    user.ID,
-				MachineID: machine.ID,
-				Host:      conf.Host,
-				Values:    conf.Values,
+				UserID:       user.ID,
+				MachineID:    machine.ID,
+				Host:         conf.Host,
+				Values:       conf.Values,
+				IdentityFile: conf.IdentityFile,
 			}
 		})
 		user.Config = sshConfigData
