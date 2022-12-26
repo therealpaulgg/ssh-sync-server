@@ -34,6 +34,7 @@ type ChallengeResponse struct {
 }
 
 type Something struct {
+	Username          string
 	ChallengeAccepted chan bool
 	PublicKeyChannel  chan []byte
 	MasterKeyChannel  chan []byte
@@ -79,6 +80,10 @@ func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.Res
 	chalChan, ok := ChallengeResponseDict[foo.Challenge]
 	if !ok {
 		log.Warn().Msg("Could not find challenge in dict")
+		return
+	}
+	if user.Username != chalChan.Username {
+		log.Warn().Msg("Usernames do not match. Uh oh...")
 		return
 	}
 	chalChan.ChallengeAccepted <- true
@@ -196,6 +201,7 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	// At this point Computer B will be able to communicate freely.
 
 	ChallengeResponseDict["challenge-phrase"] = Something{
+		Username:          user.Username,
 		ChallengeAccepted: make(chan bool),
 		PublicKeyChannel:  make(chan []byte),
 		MasterKeyChannel:  make(chan []byte),
