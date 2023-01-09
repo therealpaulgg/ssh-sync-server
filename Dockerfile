@@ -4,9 +4,10 @@ WORKDIR /app
 
 COPY go.mod ./
 COPY go.sum ./
+COPY *.go ./
+
 RUN go mod download
 RUN go mod verify
-COPY *.go ./
 
 RUN go build -o /godocker
 
