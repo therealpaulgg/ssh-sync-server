@@ -13,7 +13,8 @@ RUN adduser \
     --no-create-home \    
     --uid "${UID}" \    
     "${USER}"
-WORKDIR $GOPATH/src/mypackage/myapp/
+
+
 COPY . .
 
 # Using go mod.
