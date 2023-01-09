@@ -7,7 +7,7 @@ RUN go mod download
 RUN go mod verify
 COPY *.go ./
 
-RUN go build /godocker
+RUN go build -o /godocker
 
 FROM scratch
 
