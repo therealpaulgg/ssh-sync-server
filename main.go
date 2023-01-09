@@ -16,7 +16,7 @@ func main() {
 	injector := do.New()
 	setup.SetupServices(injector)
 	err := godotenv.Load()
-	if os.Getenv("NO_DOTENV") == "1" && err != nil {
+	if os.Getenv("NO_DOTENV") != "1" && err != nil {
 		log.Fatal().Err(err).Msg("Error loading .env file")
 	}
 	r := router.Router(injector)

@@ -18,5 +18,5 @@ WORKDIR /
 
 COPY --from=builder /godocker /godocker
 
-ENV NODOTENV=1
+ENV NO_DOTENV=1
 ENTRYPOINT ["/godocker"]
