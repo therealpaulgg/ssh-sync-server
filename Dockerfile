@@ -1,4 +1,7 @@
 FROM golang:1.19-alpine AS builder
+ENV GOOS=linux
+ENV GOARCH=amd64
+ENV CGO_ENABLED=0
 
 WORKDIR /app
 
@@ -9,7 +12,7 @@ RUN go mod verify
 
 RUN go build -o /godocker
 
-FROM alpine
+FROM scratch
 
 WORKDIR /
 
