@@ -1,36 +1,19 @@
-FROM golang:alpine AS builder
+FROM golang:1.19-alpine AS builder
 
-RUN apk update && apk add --no-cache git
+WORKDIR /app
 
-ENV USER=appuser
-ENV UID=10001
-
-RUN adduser \    
-    --disabled-password \    
-    --gecos "" \    
-    --home "/nonexistent" \    
-    --shell "/sbin/nologin" \    
-    --no-create-home \    
-    --uid "${UID}" \    
-    "${USER}"
-
-COPY . ./ssh-sync
-WORKDIR /go/ssh-sync
-
-# Using go mod.
+COPY go.mod ./
 RUN go mod download
 RUN go mod verify
+COPY *.go ./
 
-RUN GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o /go/bin/hello
-
-RUN ls -lah
+RUN go build /godocker
 
 FROM scratch
-COPY --from=builder /etc/passwd /etc/passwd
-COPY --from=builder /etc/group /etc/group
 
-COPY --from=builder /go/bin/hello /app
+WORKDIR /
 
-USER appuser:appuser
+COPY --from=builder /godocker /godocker
+
 ENV NODOTENV=1
-ENTRYPOINT ["/app"]
+ENTRYPOINT ["/godocker"]
