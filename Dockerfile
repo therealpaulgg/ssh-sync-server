@@ -9,7 +9,7 @@ RUN go mod verify
 
 RUN go build -o /godocker
 
-FROM scratch
+FROM alpine
 
 WORKDIR /
 
