@@ -10,6 +10,5 @@ steps:
       password:
         from_secret: DOCKER_TOKEN
       tags: ${DRONE_COMMIT}
-      repo: hub.docker.com/therealpaulgg/ssh-sync-server
-      registry: hub.docker.com
+      repo: therealpaulgg/ssh-sync-server
       insecure: false
