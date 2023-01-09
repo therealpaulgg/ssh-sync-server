@@ -9,6 +9,8 @@ steps:
         from_secret: DOCKER_USER
       password:
         from_secret: DOCKER_TOKEN
-      tags: ${DRONE_COMMIT}
+      tags: 
+        - latest
+        - ${DRONE_COMMIT}
       repo: therealpaulgg/ssh-sync-server
       insecure: false
