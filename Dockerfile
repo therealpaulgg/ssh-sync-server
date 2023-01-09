@@ -14,8 +14,8 @@ RUN adduser \
     --uid "${UID}" \    
     "${USER}"
 
-
-COPY . .
+COPY . ./ssh-sync
+WORKDIR /go/ssh-sync
 
 # Using go mod.
 RUN go mod download
