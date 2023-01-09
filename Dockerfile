@@ -29,8 +29,8 @@ FROM scratch
 COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /etc/group /etc/group
 
-COPY --from=builder /go/bin/hello /go/bin/hello
+COPY --from=builder /go/bin/hello /app
 
 USER appuser:appuser
 ENV NODOTENV=1
-ENTRYPOINT ["/go/bin/hello"]
+ENTRYPOINT ["/app"]
