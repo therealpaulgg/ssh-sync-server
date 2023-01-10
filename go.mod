@@ -35,6 +35,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/samber/do v1.5.1 // indirect
 	github.com/samber/lo v1.37.0 // indirect
+	github.com/sethvargo/go-diceware v0.3.0 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
