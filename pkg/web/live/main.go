@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gobwas/ws"
@@ -14,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
+	"github.com/sethvargo/go-diceware/diceware"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/dto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
@@ -187,7 +189,14 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	}
 	// We are in an acceptable state, generate a challenge
 	// The server will generate a phrase, sending it back to Computer B. The user will need to type this phrase into Computer A.
-	err = wsutil.WriteServerBinary(conn, []byte("challenge-phrase"))
+	words, err := diceware.GenerateWithWordList(2, diceware.WordListEffLarge())
+	if err != nil {
+		log.Err(err).Msg("Error generating diceware")
+		return
+	}
+	challengePhrase := strings.Join(words, "-")
+	diceware.Generate(4)
+	err = wsutil.WriteServerBinary(conn, []byte(challengePhrase))
 	if err != nil {
 		log.Err(err).Msg("Error writing challenge phrase")
 		return
@@ -199,26 +208,26 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	// Computer A will receive the public key, decrypt the master key, encrypt the master key with the public key, and send it back to the server.
 	// At this point Computer B will be able to communicate freely.
 
-	ChallengeResponseDict["challenge-phrase"] = Something{
+	ChallengeResponseDict[challengePhrase] = Something{
 		Username:          user.Username,
 		ChallengeAccepted: make(chan bool),
 		ChallengerChannel: make(chan []byte),
 		ResponderChannel:  make(chan []byte),
 	}
 	defer func() {
-		close(ChallengeResponseDict["challenge-phrase"].ChallengeAccepted)
-		close(ChallengeResponseDict["challenge-phrase"].ChallengerChannel)
-		close(ChallengeResponseDict["challenge-phrase"].ResponderChannel)
-		delete(ChallengeResponseDict, "challenge-phrase")
+		close(ChallengeResponseDict[challengePhrase].ChallengeAccepted)
+		close(ChallengeResponseDict[challengePhrase].ChallengerChannel)
+		close(ChallengeResponseDict[challengePhrase].ResponderChannel)
+		delete(ChallengeResponseDict, challengePhrase)
 	}()
 	timer := time.NewTimer(30 * time.Second)
 	go func() {
 		for {
 			select {
 			case <-timer.C:
-				ChallengeResponseDict["challenge-phrase"].ChallengeAccepted <- false
+				ChallengeResponseDict[challengePhrase].ChallengeAccepted <- false
 				return
-			case chalWon := <-ChallengeResponseDict["challenge-phrase"].ChallengeAccepted:
+			case chalWon := <-ChallengeResponseDict[challengePhrase].ChallengeAccepted:
 				if chalWon {
 					timer.Stop()
 				}
@@ -226,7 +235,7 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 			}
 		}
 	}()
-	challengeResult := <-ChallengeResponseDict["challenge-phrase"].ChallengeAccepted
+	challengeResult := <-ChallengeResponseDict[challengePhrase].ChallengeAccepted
 
 	if !challengeResult {
 		// TODO better error message - need to ensure client can receive it too
@@ -242,8 +251,8 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		log.Err(err).Msg("Error reading client binary")
 		return
 	}
-	ChallengeResponseDict["challenge-phrase"].ChallengerChannel <- pubkey
-	dat := <-ChallengeResponseDict["challenge-phrase"].ResponderChannel
+	ChallengeResponseDict[challengePhrase].ChallengerChannel <- pubkey
+	dat := <-ChallengeResponseDict[challengePhrase].ResponderChannel
 	machine.PublicKey = pubkey
 	err = machine.CreateMachine(i)
 	if err != nil {
