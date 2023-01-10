@@ -189,13 +189,12 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	}
 	// We are in an acceptable state, generate a challenge
 	// The server will generate a phrase, sending it back to Computer B. The user will need to type this phrase into Computer A.
-	words, err := diceware.GenerateWithWordList(2, diceware.WordListEffLarge())
+	words, err := diceware.GenerateWithWordList(3, diceware.WordListEffLarge())
 	if err != nil {
 		log.Err(err).Msg("Error generating diceware")
 		return
 	}
 	challengePhrase := strings.Join(words, "-")
-	diceware.Generate(4)
 	err = wsutil.WriteServerBinary(conn, []byte(challengePhrase))
 	if err != nil {
 		log.Err(err).Msg("Error writing challenge phrase")
