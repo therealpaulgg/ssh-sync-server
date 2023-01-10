@@ -1,11 +1,14 @@
 package models
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/samber/do"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
 )
 
@@ -14,6 +17,7 @@ type User struct {
 	Username string      `json:"username" db:"username"`
 	Keys     []SshKey    `json:"keys"`
 	Config   []SshConfig `json:"config"`
+	Machines []Machine   `json:"machines"`
 }
 
 var ErrUserAlreadyExists = errors.New("user already exists")
@@ -69,9 +73,30 @@ func (u *User) CreateUser(i *do.Injector) error {
 }
 
 func (u *User) DeleteUser(i *do.Injector) error {
-	q := do.MustInvoke[query.QueryService[User]](i)
-	_, err := q.QueryOne("delete from users where id = $1", u.ID)
-	return err
+	q := do.MustInvoke[database.DataAccessor](i)
+	tx, err := q.GetConnection().BeginTx(context.TODO(), pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	if _, err = tx.Exec(context.TODO(), "delete from ssh_keys where user_id = $1", u.ID); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(context.TODO(), "delete from ssh_configs where user_id = $1", u.ID); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(context.TODO(), "delete from master_keys where user_id = $1", u.ID); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(context.TODO(), "delete from machines where user_id = $1", u.ID); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(context.TODO(), "delete from users where id = $1", u.ID); err != nil {
+		return err
+	}
+	if err = tx.Commit(context.TODO()); err != nil && !errors.Is(err, pgx.ErrTxCommitRollback) {
+		return tx.Rollback(context.TODO())
+	}
+	return nil
 }
 
 func (u *User) GetUserConfig(i *do.Injector) error {
@@ -91,6 +116,16 @@ func (u *User) GetUserKeys(i *do.Injector) error {
 		return err
 	}
 	u.Keys = keys
+	return nil
+}
+
+func (u *User) GetUserMachines(i *do.Injector) error {
+	q := do.MustInvoke[query.QueryService[Machine]](i)
+	machines, err := q.Query("select * from machines where user_id = $1", u.ID)
+	if err != nil {
+		return err
+	}
+	u.Machines = machines
 	return nil
 }
 
