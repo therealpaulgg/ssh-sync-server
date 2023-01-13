@@ -32,10 +32,17 @@ require (
 	github.com/samber/do v1.5.1
 	github.com/samber/lo v1.37.0
 	github.com/sethvargo/go-diceware v0.3.0
-	github.com/therealpaulgg/ssh-sync v0.1.0
+	github.com/therealpaulgg/ssh-sync v0.1.5
 	go.uber.org/atomic v1.10.0 // indirect
 	golang.org/x/crypto v0.5.0 // indirect
 	golang.org/x/exp v0.0.0-20230111222715-75897c7a292a // indirect
 	golang.org/x/sync v0.0.0-20220923202941-7f9b1623fab7 // indirect
 	golang.org/x/text v0.6.0 // indirect
+)
+
+require (
+	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
+	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/urfave/cli/v2 v2.23.7 // indirect
+	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 )
