@@ -17,8 +17,8 @@ import (
 	"github.com/samber/do"
 	"github.com/sethvargo/go-diceware/diceware"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
-	"github.com/therealpaulgg/ssh-sync-server/pkg/web/dto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
+	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
 
 // Computer A creates a live connection.
