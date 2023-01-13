@@ -12,8 +12,8 @@ import (
 	"github.com/samber/do"
 	"github.com/samber/lo"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
-	"github.com/therealpaulgg/ssh-sync-server/pkg/web/dto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
+	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
 
 func DataRoutes(i *do.Injector) chi.Router {

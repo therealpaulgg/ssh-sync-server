@@ -1,24 +1,23 @@
 package live
 
 import (
-	"bytes"
 	"database/sql"
-	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gobwas/ws"
-	"github.com/gobwas/ws/wsutil"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
 	"github.com/sethvargo/go-diceware/diceware"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
-	"github.com/therealpaulgg/ssh-sync-server/pkg/web/dto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
+	"github.com/therealpaulgg/ssh-sync/pkg/dto"
+	"github.com/therealpaulgg/ssh-sync/pkg/utils"
 )
 
 // Computer A creates a live connection.
@@ -66,19 +65,12 @@ func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.Res
 		log.Warn().Msg("Could not get machine from context")
 		return
 	}
-	var foo dto.ChallengeResponseDto
-	msg, err := wsutil.ReadClientBinary(conn)
+	foo, err := utils.ReadClientMessage[dto.ChallengeResponseDto](&conn)
 	if err != nil {
-		log.Err(err).Msg("Error reading client binary")
+		log.Err(err).Msg("Error reading client message")
 		return
 	}
-	reader := bytes.NewReader(msg)
-	err = json.NewDecoder(reader).Decode(&foo)
-	if err != nil {
-		log.Err(err).Msg("Error decoding json")
-		return
-	}
-	chalChan, ok := ChallengeResponseDict[foo.Challenge]
+	chalChan, ok := ChallengeResponseDict[foo.Data.Challenge]
 	if !ok {
 		log.Warn().Msg("Could not find challenge in dict")
 		return
@@ -105,22 +97,17 @@ func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.Res
 		PublicKey:          key,
 		EncryptedMasterKey: masterKey.Data,
 	}
-	b, err := json.Marshal(keys)
+	err = utils.WriteServerMessage(&conn, keys)
 	if err != nil {
-		log.Err(err).Msg("Error marshaling JSON")
+		log.Err(err).Msg("Error writing server message")
 		return
 	}
-	err = wsutil.WriteServerBinary(conn, b)
+	encMasterKeyDto, err := utils.ReadClientMessage[dto.EncryptedMasterKeyDto](&conn)
 	if err != nil {
-		log.Err(err).Msg("Error writing server binary")
+		log.Err(err).Msg("Error reading client message")
 		return
 	}
-	encMasterKey, err := wsutil.ReadClientBinary(conn)
-	if err != nil {
-		log.Err(err).Msg("Error reading client binary")
-		return
-	}
-	chalChan.ResponderChannel <- encMasterKey
+	chalChan.ResponderChannel <- encMasterKeyDto.Data.EncryptedMasterKey
 }
 
 func NewMachineChallenge(i *do.Injector, r *http.Request, w http.ResponseWriter) error {
@@ -136,31 +123,20 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	conn := *c
 	defer conn.Close()
 	// first message sent should be JSON payload
-	var dto dto.UserMachineDto
-	msg, err := wsutil.ReadClientBinary(conn)
+	userMachine, err := utils.ReadClientMessage[dto.UserMachineDto](&conn)
 	if err != nil {
-		log.Err(err).Msg("Error reading client binary")
-		return
-	}
-	reader := bytes.NewReader(msg)
-	err = json.NewDecoder(reader).Decode(&dto)
-	if err != nil {
-		log.Err(err).Msg("Error decoding JSON")
+		log.Err(err).Msg("Error reading client message")
 		return
 	}
 	user := models.User{}
-	user.Username = dto.Username
+	user.Username = userMachine.Data.Username
 	err = user.GetUserByUsername(i)
+
 	if errors.Is(err, sql.ErrNoRows) {
-		b, err := json.Marshal(ServerMessage{
-			Message: "User not found",
-			Error:   true,
-		})
+		err = utils.WriteServerError[dto.MessageDto](&conn, "User not found")
 		if err != nil {
-			log.Err(err).Msg("Error marshaling JSON")
-			return
+			log.Err(err).Msg("Error writing server error")
 		}
-		wsutil.WriteServerBinary(conn, b)
 		return
 	}
 	if err != nil {
@@ -168,25 +144,21 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		return
 	}
 	machine := models.Machine{}
-	machine.Name = dto.MachineName
+	machine.Name = userMachine.Data.MachineName
 	machine.UserID = user.ID
 	err = machine.GetMachineByNameAndUser(i)
 	// if the machine already exists, reject
 	if err == nil && machine.ID != uuid.Nil {
-		b, err := json.Marshal(ServerMessage{
-			Message: "Machine already exists",
-			Error:   true,
-		})
+		err = utils.WriteServerError[dto.MessageDto](&conn, "Machine already exists")
 		if err != nil {
-			log.Err(err).Msg("Error marshaling JSON")
-			return
+			log.Err(err).Msg("Error writing server error")
 		}
-		wsutil.WriteServerBinary(conn, b)
 		return
 	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		log.Err(err).Msg("Error getting machine by name and user")
 		return
 	}
+	fmt.Println("here")
 	// We are in an acceptable state, generate a challenge
 	// The server will generate a phrase, sending it back to Computer B. The user will need to type this phrase into Computer A.
 	words, err := diceware.GenerateWithWordList(3, diceware.WordListEffLarge())
@@ -195,7 +167,7 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		return
 	}
 	challengePhrase := strings.Join(words, "-")
-	err = wsutil.WriteServerBinary(conn, []byte(challengePhrase))
+	err = utils.WriteServerMessage(&conn, dto.MessageDto{Message: challengePhrase})
 	if err != nil {
 		log.Err(err).Msg("Error writing challenge phrase")
 		return
@@ -240,19 +212,19 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		// TODO better error message - need to ensure client can receive it too
 		return
 	}
-	err = wsutil.WriteServerBinary(conn, []byte("challenge-accepted"))
+	err = utils.WriteServerMessage(&conn, dto.MessageDto{Message: "Challenge accepted!"})
 	if err != nil {
 		log.Err(err).Msg("Error writing challenge accepted")
 		return
 	}
-	pubkey, err := wsutil.ReadClientBinary(conn)
+	pubkey, err := utils.ReadClientMessage[dto.PublicKeyDto](&conn)
 	if err != nil {
-		log.Err(err).Msg("Error reading client binary")
+		log.Err(err).Msg("Error reading client message")
 		return
 	}
-	ChallengeResponseDict[challengePhrase].ChallengerChannel <- pubkey
+	ChallengeResponseDict[challengePhrase].ChallengerChannel <- pubkey.Data.PublicKey
 	dat := <-ChallengeResponseDict[challengePhrase].ResponderChannel
-	machine.PublicKey = pubkey
+	machine.PublicKey = pubkey.Data.PublicKey
 	err = machine.CreateMachine(i)
 	if err != nil {
 		log.Err(err).Msg("Error creating machine")
@@ -268,5 +240,9 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		log.Err(err).Msg("Error creating master key")
 		return
 	}
-	wsutil.WriteServerBinary(conn, []byte("Everything is done, you can now use ssh-sync"))
+	err = utils.WriteServerMessage(&conn, dto.MessageDto{Message: "Everything is done, you can now use ssh-sync"})
+	if err != nil {
+		log.Err(err).Msg("Error writing final message")
+		return
+	}
 }

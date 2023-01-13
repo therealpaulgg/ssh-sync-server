@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/samber/do"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
-	"github.com/therealpaulgg/ssh-sync-server/pkg/web/dto"
+	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
 
 func UserRoutes(i *do.Injector) chi.Router {
