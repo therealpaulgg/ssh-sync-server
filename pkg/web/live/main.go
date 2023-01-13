@@ -136,23 +136,23 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	conn := *c
 	defer conn.Close()
 	// first message sent should be JSON payload
-	var dto dto.UserMachineDto
+	var userMachine dto.UserMachineDto
 	msg, err := wsutil.ReadClientBinary(conn)
 	if err != nil {
 		log.Err(err).Msg("Error reading client binary")
 		return
 	}
 	reader := bytes.NewReader(msg)
-	err = json.NewDecoder(reader).Decode(&dto)
+	err = json.NewDecoder(reader).Decode(&userMachine)
 	if err != nil {
 		log.Err(err).Msg("Error decoding JSON")
 		return
 	}
 	user := models.User{}
-	user.Username = dto.Username
+	user.Username = userMachine.Username
 	err = user.GetUserByUsername(i)
 	if errors.Is(err, sql.ErrNoRows) {
-		b, err := json.Marshal(ServerMessage{
+		b, err := json.Marshal(dto.ServerMessageDto{
 			Message: "User not found",
 			Error:   true,
 		})
@@ -168,12 +168,12 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		return
 	}
 	machine := models.Machine{}
-	machine.Name = dto.MachineName
+	machine.Name = userMachine.MachineName
 	machine.UserID = user.ID
 	err = machine.GetMachineByNameAndUser(i)
 	// if the machine already exists, reject
 	if err == nil && machine.ID != uuid.Nil {
-		b, err := json.Marshal(ServerMessage{
+		b, err := json.Marshal(dto.ServerMessageDto{
 			Message: "Machine already exists",
 			Error:   true,
 		})
