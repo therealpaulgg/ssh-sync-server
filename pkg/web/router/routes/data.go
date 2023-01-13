@@ -37,16 +37,14 @@ func DataRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		err = user.GetUserConfig(i)
-		if err != nil {
+		if err := user.GetUserConfig(i); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		masterKey := models.MasterKey{}
 		masterKey.UserID = user.ID
 		masterKey.MachineID = machine.ID
-		err = masterKey.GetMasterKey(i)
-		if err != nil {
+		if err := masterKey.GetMasterKey(i); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -97,8 +95,7 @@ func DataRoutes(i *do.Injector) chi.Router {
 			return
 		}
 		var sshConfig []dto.SshConfigDto
-		err = json.NewDecoder(bytes.NewBufferString(sshConfigDataRaw)).Decode(&sshConfig)
-		if err != nil {
+		if err := json.NewDecoder(bytes.NewBufferString(sshConfigDataRaw)).Decode(&sshConfig); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -112,8 +109,7 @@ func DataRoutes(i *do.Injector) chi.Router {
 			}
 		})
 		user.Config = sshConfigData
-		err = user.AddAndUpdateConfig(i)
-		if err != nil {
+		if err := user.AddAndUpdateConfig(i); err != nil {
 			log.Err(err).Msg("could not add config")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -139,20 +135,17 @@ func DataRoutes(i *do.Injector) chi.Router {
 				Filename: files[i].Filename,
 				Data:     make([]byte, files[i].Size),
 			})
-			_, err = file.Read(user.Keys[i].Data)
-			if err != nil {
+			if _, err := file.Read(user.Keys[i].Data); err != nil {
 				log.Err(err).Msg("could not open file")
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 		}
-		err = user.AddAndUpdateConfig(i)
-		if err != nil {
+		if err := user.AddAndUpdateConfig(i); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		err = user.AddAndUpdateKeys(i)
-		if err != nil {
+		if err := user.AddAndUpdateKeys(i); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}

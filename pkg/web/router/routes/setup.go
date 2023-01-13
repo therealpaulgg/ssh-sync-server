@@ -67,8 +67,7 @@ func SetupRoutes(i *do.Injector) chi.Router {
 		}
 		user := models.User{}
 		user.Username = userDto.Username
-		err = user.CreateUser(i)
-		if errors.Is(err, models.ErrUserAlreadyExists) {
+		if err := user.CreateUser(i); errors.Is(err, models.ErrUserAlreadyExists) {
 			w.WriteHeader(http.StatusConflict)
 			return
 		}
@@ -81,8 +80,7 @@ func SetupRoutes(i *do.Injector) chi.Router {
 		machine.Name = machineName
 		machine.UserID = user.ID
 		machine.PublicKey = fileBytes
-		err = machine.CreateMachine(i)
-		if errors.Is(err, models.ErrMachineAlreadyExists) {
+		if err := machine.CreateMachine(i); errors.Is(err, models.ErrMachineAlreadyExists) {
 			w.WriteHeader(http.StatusConflict)
 			return
 		}

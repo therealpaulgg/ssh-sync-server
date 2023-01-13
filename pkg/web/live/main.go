@@ -73,6 +73,9 @@ func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.Res
 	chalChan, ok := ChallengeResponseDict[foo.Data.Challenge]
 	if !ok {
 		log.Warn().Msg("Could not find challenge in dict")
+		if err := utils.WriteServerError[dto.ChallengeSuccessEncryptedKeyDto](&conn, "Invalid challenge response."); err != nil {
+			log.Err(err).Msg("Error writing server error")
+		}
 		return
 	}
 	if user.Username != chalChan.Username {
@@ -88,17 +91,18 @@ func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.Res
 		UserID:    user.ID,
 		MachineID: machine.ID,
 	}
-	err = masterKey.GetMasterKey(i)
-	if err != nil {
+	if err := masterKey.GetMasterKey(i); err != nil {
 		log.Err(err).Msg("Error getting master key")
+		if err := utils.WriteServerError[dto.ChallengeSuccessEncryptedKeyDto](&conn, "Couldn't retrieve master key."); err != nil {
+			log.Err(err).Msg("Error writing server error")
+		}
 		return
 	}
 	keys := dto.ChallengeSuccessEncryptedKeyDto{
 		PublicKey:          key,
 		EncryptedMasterKey: masterKey.Data,
 	}
-	err = utils.WriteServerMessage(&conn, keys)
-	if err != nil {
+	if err := utils.WriteServerMessage(&conn, keys); err != nil {
 		log.Err(err).Msg("Error writing server message")
 		return
 	}
@@ -131,10 +135,8 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	user := models.User{}
 	user.Username = userMachine.Data.Username
 	err = user.GetUserByUsername(i)
-
 	if errors.Is(err, sql.ErrNoRows) {
-		err = utils.WriteServerError[dto.MessageDto](&conn, "User not found")
-		if err != nil {
+		if err := utils.WriteServerError[dto.MessageDto](&conn, "User not found"); err != nil {
 			log.Err(err).Msg("Error writing server error")
 		}
 		return
@@ -149,12 +151,12 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	err = machine.GetMachineByNameAndUser(i)
 	// if the machine already exists, reject
 	if err == nil && machine.ID != uuid.Nil {
-		err = utils.WriteServerError[dto.MessageDto](&conn, "Machine already exists")
-		if err != nil {
+		if err = utils.WriteServerError[dto.MessageDto](&conn, "Machine already exists"); err != nil {
 			log.Err(err).Msg("Error writing server error")
 		}
 		return
 	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
+
 		log.Err(err).Msg("Error getting machine by name and user")
 		return
 	}
@@ -164,11 +166,13 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	words, err := diceware.GenerateWithWordList(3, diceware.WordListEffLarge())
 	if err != nil {
 		log.Err(err).Msg("Error generating diceware")
+		if err := utils.WriteServerError[dto.MessageDto](&conn, "Error generating diceware"); err != nil {
+			log.Err(err).Msg("Error writing server error")
+		}
 		return
 	}
 	challengePhrase := strings.Join(words, "-")
-	err = utils.WriteServerMessage(&conn, dto.MessageDto{Message: challengePhrase})
-	if err != nil {
+	if err := utils.WriteServerMessage(&conn, dto.MessageDto{Message: challengePhrase}); err != nil {
 		log.Err(err).Msg("Error writing challenge phrase")
 		return
 	}
@@ -209,11 +213,12 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	challengeResult := <-ChallengeResponseDict[challengePhrase].ChallengeAccepted
 
 	if !challengeResult {
-		// TODO better error message - need to ensure client can receive it too
+		if err := utils.WriteServerError[dto.MessageDto](&conn, "Challenge timed out"); err != nil {
+			log.Err(err).Msg("Error writing server error")
+		}
 		return
 	}
-	err = utils.WriteServerMessage(&conn, dto.MessageDto{Message: "Challenge accepted!"})
-	if err != nil {
+	if err := utils.WriteServerMessage(&conn, dto.MessageDto{Message: "Challenge accepted!"}); err != nil {
 		log.Err(err).Msg("Error writing challenge accepted")
 		return
 	}
@@ -225,8 +230,7 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	ChallengeResponseDict[challengePhrase].ChallengerChannel <- pubkey.Data.PublicKey
 	dat := <-ChallengeResponseDict[challengePhrase].ResponderChannel
 	machine.PublicKey = pubkey.Data.PublicKey
-	err = machine.CreateMachine(i)
-	if err != nil {
+	if err := machine.CreateMachine(i); err != nil {
 		log.Err(err).Msg("Error creating machine")
 		return
 	}
@@ -235,13 +239,11 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		MachineID: machine.ID,
 		Data:      dat,
 	}
-	err = masterKey.CreateMasterKey(i)
-	if err != nil {
+	if err := masterKey.CreateMasterKey(i); err != nil {
 		log.Err(err).Msg("Error creating master key")
 		return
 	}
-	err = utils.WriteServerMessage(&conn, dto.MessageDto{Message: "Everything is done, you can now use ssh-sync"})
-	if err != nil {
+	if err := utils.WriteServerMessage(&conn, dto.MessageDto{Message: "Everything is done, you can now use ssh-sync"}); err != nil {
 		log.Err(err).Msg("Error writing final message")
 		return
 	}

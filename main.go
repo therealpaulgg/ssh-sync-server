@@ -25,8 +25,7 @@ func main() {
 		port = "3000"
 	}
 	log.Info().Msg(fmt.Sprintf("Server started on port %s", port))
-	err = http.ListenAndServe(fmt.Sprintf(":%s", port), r)
-	if err != nil {
+	if err := http.ListenAndServe(fmt.Sprintf(":%s", port), r); err != nil {
 		log.Fatal().Err(err).Msg("Error starting server")
 	}
 }

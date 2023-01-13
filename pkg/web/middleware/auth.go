@@ -54,8 +54,7 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 			}
 			user := &models.User{}
 			user.Username = username
-			err = user.GetUserByUsername(i)
-			if err != nil {
+			if err := user.GetUserByUsername(i); err != nil {
 				log.Debug().Err(err).Msg("couldnt get user")
 				w.WriteHeader(http.StatusUnauthorized)
 				return
@@ -63,8 +62,7 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 			m := &models.Machine{}
 			m.UserID = user.ID
 			m.Name = machine
-			err = m.GetMachineByNameAndUser(i)
-			if err != nil {
+			if err := m.GetMachineByNameAndUser(i); err != nil {
 				log.Debug().Err(err).Msg("couldnt get machine")
 				w.WriteHeader(http.StatusUnauthorized)
 				return
@@ -75,8 +73,7 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			_, err = jwt.ParseRequest(r, jwt.WithKey(jwa.ES512, key))
-			if err != nil {
+			if _, err := jwt.ParseRequest(r, jwt.WithKey(jwa.ES512, key)); err != nil {
 				log.Debug().Msg(fmt.Sprintf("Error parsing JWT: %s", err))
 				w.WriteHeader(http.StatusUnauthorized)
 				return

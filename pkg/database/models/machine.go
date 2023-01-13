@@ -27,17 +27,17 @@ func (m *Machine) DeleteMachine(i *do.Injector) error {
 	if err != nil {
 		return err
 	}
-	if _, err = tx.Exec(context.TODO(), "delete from ssh_configs where machine_id = $1", m.ID); err != nil {
+	if _, err := tx.Exec(context.TODO(), "delete from ssh_configs where machine_id = $1", m.ID); err != nil {
 		return err
 	}
-	if _, err = tx.Exec(context.TODO(), "delete from master_keys where machine_id = $1", m.ID); err != nil {
+	if _, err := tx.Exec(context.TODO(), "delete from master_keys where machine_id = $1", m.ID); err != nil {
 		return err
 	}
-	if _, err = tx.Exec(context.TODO(), "delete from machines where id = $1", m.ID); err != nil {
+	if _, err := tx.Exec(context.TODO(), "delete from machines where id = $1", m.ID); err != nil {
 		return err
 	}
 
-	if err = tx.Commit(context.TODO()); err != nil && !errors.Is(err, pgx.ErrTxCommitRollback) {
+	if err := tx.Commit(context.TODO()); err != nil && !errors.Is(err, pgx.ErrTxCommitRollback) {
 		return tx.Rollback(context.TODO())
 	}
 	return nil
