@@ -97,3 +97,26 @@ func (m *Machine) CreateMachine(i *do.Injector) error {
 	m.PublicKey = machine.PublicKey
 	return nil
 }
+
+func (m *Machine) CreateMachineTx(i *do.Injector, tx *pgx.Tx) error {
+	q := do.MustInvoke[query.QueryServiceTx[Machine]](i)
+	existingMachine, err := q.QueryOne(tx, "select * from machines where name = $1 and user_id = $2", m.Name, m.UserID)
+	if err != nil {
+		return err
+	}
+	if existingMachine != nil {
+		return ErrMachineAlreadyExists
+	}
+	machine, err := q.QueryOne(tx, "insert into machines (user_id, name, public_key) values ($1, $2, $3) returning *", m.UserID, m.Name, m.PublicKey)
+	if err != nil {
+		return err
+	}
+	if machine == nil {
+		return sql.ErrNoRows
+	}
+	m.ID = machine.ID
+	m.Name = machine.Name
+	m.UserID = machine.UserID
+	m.PublicKey = machine.PublicKey
+	return nil
+}
