@@ -59,7 +59,7 @@ func (m *MasterKey) CreateMasterKey(i *do.Injector) error {
 	return nil
 }
 
-func (m *MasterKey) CreateMasterKeyTx(i *do.Injector, tx *pgx.Tx) error {
+func (m *MasterKey) CreateMasterKeyTx(i *do.Injector, tx pgx.Tx) error {
 	q := do.MustInvoke[query.QueryServiceTx[MasterKey]](i)
 	existingKey, err := q.QueryOne(tx, "select * from master_keys where machine_id = $1 and user_id = $2", m.MachineID, m.UserID)
 	if err != nil {

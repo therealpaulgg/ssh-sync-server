@@ -72,7 +72,7 @@ func (u *User) CreateUser(i *do.Injector) error {
 	return nil
 }
 
-func (u *User) CreateUserTx(i *do.Injector, tx *pgx.Tx) error {
+func (u *User) CreateUserTx(i *do.Injector, tx pgx.Tx) error {
 	q := do.MustInvoke[query.QueryServiceTx[User]](i)
 	existingUser, err := q.QueryOne(tx, "select * from users where username = $1", u.Username)
 	if err != nil {

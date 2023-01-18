@@ -98,7 +98,7 @@ func (m *Machine) CreateMachine(i *do.Injector) error {
 	return nil
 }
 
-func (m *Machine) CreateMachineTx(i *do.Injector, tx *pgx.Tx) error {
+func (m *Machine) CreateMachineTx(i *do.Injector, tx pgx.Tx) error {
 	q := do.MustInvoke[query.QueryServiceTx[Machine]](i)
 	existingMachine, err := q.QueryOne(tx, "select * from machines where name = $1 and user_id = $2", m.Name, m.UserID)
 	if err != nil {
