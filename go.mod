@@ -32,7 +32,7 @@ require (
 	github.com/samber/do v1.5.1
 	github.com/samber/lo v1.37.0
 	github.com/sethvargo/go-diceware v0.3.0
-	github.com/therealpaulgg/ssh-sync v0.1.5
+	github.com/therealpaulgg/ssh-sync v0.2.0
 	go.uber.org/atomic v1.10.0 // indirect
 	golang.org/x/crypto v0.5.0 // indirect
 	golang.org/x/exp v0.0.0-20230111222715-75897c7a292a // indirect
