@@ -106,9 +106,6 @@ func (u *User) DeleteUser(i *do.Injector) error {
 	if _, err := tx.Exec(context.TODO(), "delete from ssh_configs where user_id = $1", u.ID); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(context.TODO(), "delete from master_keys where user_id = $1", u.ID); err != nil {
-		return err
-	}
 	if _, err := tx.Exec(context.TODO(), "delete from machines where user_id = $1", u.ID); err != nil {
 		return err
 	}
