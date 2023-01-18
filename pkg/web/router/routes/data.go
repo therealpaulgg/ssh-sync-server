@@ -8,10 +8,12 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi"
+	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
 	"github.com/samber/lo"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
 	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
@@ -95,8 +97,14 @@ func DataRoutes(i *do.Injector) chi.Router {
 			}
 		})
 		user.Config = sshConfigData
-		// TODO transaction
-		if err := user.AddAndUpdateConfig(i); err != nil {
+		txQueryService := do.MustInvoke[query.QueryServiceTx[models.User]](i)
+		tx, err := txQueryService.StartTx(pgx.TxOptions{})
+		if err != nil {
+			log.Err(err).Msg("error starting transaction")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if err := user.AddAndUpdateConfigTx(i, tx); err != nil {
 			log.Err(err).Msg("could not add config")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -128,12 +136,17 @@ func DataRoutes(i *do.Injector) chi.Router {
 				return
 			}
 		}
-		// why am I calling this twice? not sure if this is necessary
-		if err := user.AddAndUpdateConfig(i); err != nil {
+		if err := user.AddAndUpdateKeysTx(i, tx); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		if err := user.AddAndUpdateKeys(i); err != nil {
+		err = txQueryService.Commit(tx)
+		if err != nil {
+			log.Err(err).Msg("error committing transaction")
+			err = txQueryService.Rollback(tx)
+			if err != nil {
+				log.Err(err).Msg("error rolling back transaction")
+			}
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
