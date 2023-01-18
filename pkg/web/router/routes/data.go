@@ -26,25 +26,12 @@ func DataRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		machine, ok := r.Context().Value(middleware.MachineContextKey).(*models.Machine)
-		if !ok {
-			log.Err(errors.New("could not get machine from context"))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
 		err := user.GetUserKeys(i)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if err := user.GetUserConfig(i); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		masterKey := models.MasterKey{}
-		masterKey.UserID = user.ID
-		masterKey.MachineID = machine.ID
-		if err := masterKey.GetMasterKey(i); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -59,7 +46,6 @@ func DataRoutes(i *do.Injector) chi.Router {
 					Data:     key.Data,
 				}
 			}),
-			MasterKey: masterKey.Data,
 			SshConfig: lo.Map(user.Config, func(conf models.SshConfig, index int) dto.SshConfigDto {
 				return dto.SshConfigDto{
 					Host:         conf.Host,
