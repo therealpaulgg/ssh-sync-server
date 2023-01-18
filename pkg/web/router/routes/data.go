@@ -8,10 +8,12 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi"
+	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
 	"github.com/samber/lo"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
 	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
@@ -26,25 +28,12 @@ func DataRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		machine, ok := r.Context().Value(middleware.MachineContextKey).(*models.Machine)
-		if !ok {
-			log.Err(errors.New("could not get machine from context"))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
 		err := user.GetUserKeys(i)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if err := user.GetUserConfig(i); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		masterKey := models.MasterKey{}
-		masterKey.UserID = user.ID
-		masterKey.MachineID = machine.ID
-		if err := masterKey.GetMasterKey(i); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -59,7 +48,6 @@ func DataRoutes(i *do.Injector) chi.Router {
 					Data:     key.Data,
 				}
 			}),
-			MasterKey: masterKey.Data,
 			SshConfig: lo.Map(user.Config, func(conf models.SshConfig, index int) dto.SshConfigDto {
 				return dto.SshConfigDto{
 					Host:         conf.Host,
@@ -109,7 +97,14 @@ func DataRoutes(i *do.Injector) chi.Router {
 			}
 		})
 		user.Config = sshConfigData
-		if err := user.AddAndUpdateConfig(i); err != nil {
+		txQueryService := do.MustInvoke[query.QueryServiceTx[models.User]](i)
+		tx, err := txQueryService.StartTx(pgx.TxOptions{})
+		if err != nil {
+			log.Err(err).Msg("error starting transaction")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if err := user.AddAndUpdateConfigTx(i, tx); err != nil {
 			log.Err(err).Msg("could not add config")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -141,11 +136,17 @@ func DataRoutes(i *do.Injector) chi.Router {
 				return
 			}
 		}
-		if err := user.AddAndUpdateConfig(i); err != nil {
+		if err := user.AddAndUpdateKeysTx(i, tx); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		if err := user.AddAndUpdateKeys(i); err != nil {
+		err = txQueryService.Commit(tx)
+		if err != nil {
+			log.Err(err).Msg("error committing transaction")
+			err = txQueryService.Rollback(tx)
+			if err != nil {
+				log.Err(err).Msg("error rolling back transaction")
+			}
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}

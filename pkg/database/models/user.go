@@ -72,6 +72,28 @@ func (u *User) CreateUser(i *do.Injector) error {
 	return nil
 }
 
+func (u *User) CreateUserTx(i *do.Injector, tx pgx.Tx) error {
+	q := do.MustInvoke[query.QueryServiceTx[User]](i)
+	existingUser, err := q.QueryOne(tx, "select * from users where username = $1", u.Username)
+	if err != nil {
+		return err
+	}
+
+	if existingUser != nil {
+		return ErrUserAlreadyExists
+	}
+	user, err := q.QueryOne(tx, "insert into users (username) values ($1) returning *", u.Username)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return sql.ErrNoRows
+	}
+	u.ID = user.ID
+	u.Username = user.Username
+	return nil
+}
+
 func (u *User) DeleteUser(i *do.Injector) error {
 	q := do.MustInvoke[database.DataAccessor](i)
 	tx, err := q.GetConnection().BeginTx(context.TODO(), pgx.TxOptions{})
@@ -140,9 +162,30 @@ func (u *User) AddAndUpdateKeys(i *do.Injector) error {
 	return nil
 }
 
+func (u *User) AddAndUpdateKeysTx(i *do.Injector, tx pgx.Tx) error {
+	for _, key := range u.Keys {
+		key.UserID = u.ID
+		err := key.UpsertSshKeyTx(i, tx)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (u *User) AddAndUpdateConfig(i *do.Injector) error {
 	for _, config := range u.Config {
 		err := config.UpsertSshConfig(i)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (u *User) AddAndUpdateConfigTx(i *do.Injector, tx pgx.Tx) error {
+	for _, config := range u.Config {
+		err := config.UpsertSshConfigTx(i, tx)
 		if err != nil {
 			return err
 		}

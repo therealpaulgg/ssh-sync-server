@@ -3,7 +3,6 @@ package live
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -60,11 +59,6 @@ func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.Res
 		log.Warn().Msg("Could not get user from context")
 		return
 	}
-	machine, ok := r.Context().Value(middleware.MachineContextKey).(*models.Machine)
-	if !ok {
-		log.Warn().Msg("Could not get machine from context")
-		return
-	}
 	foo, err := utils.ReadClientMessage[dto.ChallengeResponseDto](&conn)
 	if err != nil {
 		log.Err(err).Msg("Error reading client message")
@@ -87,20 +81,8 @@ func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.Res
 	// need a channel that both threads can access so that machine B can send public key to machine A
 	// and machine A can send back encrypted master key
 	key := <-chalChan.ChallengerChannel
-	masterKey := models.MasterKey{
-		UserID:    user.ID,
-		MachineID: machine.ID,
-	}
-	if err := masterKey.GetMasterKey(i); err != nil {
-		log.Err(err).Msg("Error getting master key")
-		if err := utils.WriteServerError[dto.ChallengeSuccessEncryptedKeyDto](&conn, "Couldn't retrieve master key."); err != nil {
-			log.Err(err).Msg("Error writing server error")
-		}
-		return
-	}
 	keys := dto.ChallengeSuccessEncryptedKeyDto{
-		PublicKey:          key,
-		EncryptedMasterKey: masterKey.Data,
+		PublicKey: key,
 	}
 	if err := utils.WriteServerMessage(&conn, keys); err != nil {
 		log.Err(err).Msg("Error writing server message")
@@ -160,7 +142,6 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		log.Err(err).Msg("Error getting machine by name and user")
 		return
 	}
-	fmt.Println("here")
 	// We are in an acceptable state, generate a challenge
 	// The server will generate a phrase, sending it back to Computer B. The user will need to type this phrase into Computer A.
 	words, err := diceware.GenerateWithWordList(3, diceware.WordListEffLarge())
@@ -228,19 +209,14 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		return
 	}
 	ChallengeResponseDict[challengePhrase].ChallengerChannel <- pubkey.Data.PublicKey
-	dat := <-ChallengeResponseDict[challengePhrase].ResponderChannel
+	encryptedMasterKey := <-ChallengeResponseDict[challengePhrase].ResponderChannel
 	machine.PublicKey = pubkey.Data.PublicKey
 	if err := machine.CreateMachine(i); err != nil {
 		log.Err(err).Msg("Error creating machine")
 		return
 	}
-	masterKey := models.MasterKey{
-		UserID:    user.ID,
-		MachineID: machine.ID,
-		Data:      dat,
-	}
-	if err := masterKey.CreateMasterKey(i); err != nil {
-		log.Err(err).Msg("Error creating master key")
+	if err := utils.WriteServerMessage(&conn, dto.EncryptedMasterKeyDto{EncryptedMasterKey: encryptedMasterKey}); err != nil {
+		log.Err(err).Msg("Error writing encrypted master key")
 		return
 	}
 	if err := utils.WriteServerMessage(&conn, dto.MessageDto{Message: "Everything is done, you can now use ssh-sync"}); err != nil {
