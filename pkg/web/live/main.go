@@ -230,6 +230,7 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	ChallengeResponseDict[challengePhrase].ChallengerChannel <- pubkey.Data.PublicKey
 	dat := <-ChallengeResponseDict[challengePhrase].ResponderChannel
 	machine.PublicKey = pubkey.Data.PublicKey
+	// TODO transaction
 	if err := machine.CreateMachine(i); err != nil {
 		log.Err(err).Msg("Error creating machine")
 		return

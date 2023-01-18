@@ -109,6 +109,7 @@ func DataRoutes(i *do.Injector) chi.Router {
 			}
 		})
 		user.Config = sshConfigData
+		// TODO transaction
 		if err := user.AddAndUpdateConfig(i); err != nil {
 			log.Err(err).Msg("could not add config")
 			w.WriteHeader(http.StatusInternalServerError)
@@ -141,6 +142,7 @@ func DataRoutes(i *do.Injector) chi.Router {
 				return
 			}
 		}
+		// why am I calling this twice? not sure if this is necessary
 		if err := user.AddAndUpdateConfig(i); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
