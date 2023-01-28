@@ -15,6 +15,7 @@ func Log(next http.Handler) http.Handler {
 		log.Info().
 			Str("method", r.Method).
 			Str("path", r.URL.Path).
+			Str("remote-addr", r.RemoteAddr).
 			Dur("duration", time.Since(start)).
 			Msg("Request")
 	})
