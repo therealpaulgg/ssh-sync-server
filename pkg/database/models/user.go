@@ -100,6 +100,11 @@ func (u *User) DeleteUser(i *do.Injector) error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if err != nil && !errors.Is(err, pgx.ErrTxCommitRollback) {
+			tx.Rollback(context.TODO())
+		}
+	}()
 	if _, err := tx.Exec(context.TODO(), "delete from ssh_keys where user_id = $1", u.ID); err != nil {
 		return err
 	}
@@ -112,9 +117,7 @@ func (u *User) DeleteUser(i *do.Injector) error {
 	if _, err := tx.Exec(context.TODO(), "delete from users where id = $1", u.ID); err != nil {
 		return err
 	}
-	if err := tx.Commit(context.TODO()); err != nil && !errors.Is(err, pgx.ErrTxCommitRollback) {
-		return tx.Rollback(context.TODO())
-	}
+	err = tx.Commit(context.TODO())
 	return nil
 }
 

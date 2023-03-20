@@ -10,12 +10,12 @@ import (
 )
 
 type SshConfig struct {
-	ID           uuid.UUID         `json:"id" db:"id"`
-	UserID       uuid.UUID         `json:"user_id" db:"user_id"`
-	MachineID    uuid.UUID         `json:"machine_id" db:"machine_id"`
-	Host         string            `json:"host" db:"host"`
-	Values       map[string]string `json:"values" db:"values"`
-	IdentityFile string            `json:"identity_file" db:"identity_file"`
+	ID            uuid.UUID           `json:"id" db:"id"`
+	UserID        uuid.UUID           `json:"user_id" db:"user_id"`
+	MachineID     uuid.UUID           `json:"machine_id" db:"machine_id"`
+	Host          string              `json:"host" db:"host"`
+	Values        map[string][]string `json:"values" db:"values"`
+	IdentityFiles []string            `json:"identity_files" db:"identity_files"`
 }
 
 func (s *SshConfig) GetSshConfig(i *do.Injector) error {
@@ -32,13 +32,13 @@ func (s *SshConfig) GetSshConfig(i *do.Injector) error {
 	s.MachineID = sshConfig.MachineID
 	s.Host = sshConfig.Host
 	s.Values = sshConfig.Values
-	s.IdentityFile = sshConfig.IdentityFile
+	s.IdentityFiles = sshConfig.IdentityFiles
 	return nil
 }
 
 func (s *SshConfig) UpsertSshConfig(i *do.Injector) error {
 	q := do.MustInvoke[query.QueryService[SshConfig]](i)
-	sshConfig, err := q.QueryOne("insert into ssh_configs (user_id, machine_id, host, values, identity_file) values ($1, $2, $3, $4, $5) on conflict (user_id, machine_id, host) do update set host = $3, values = $4, identity_file = $5 returning *", s.UserID, s.MachineID, s.Host, s.Values, s.IdentityFile)
+	sshConfig, err := q.QueryOne("insert into ssh_configs (user_id, machine_id, host, values, identity_files) values ($1, $2, $3, $4, $5) on conflict (user_id, machine_id, host) do update set host = $3, values = $4, identity_files = $5 returning *", s.UserID, s.MachineID, s.Host, s.Values, s.IdentityFiles)
 	if err != nil {
 		return err
 	}
@@ -50,13 +50,13 @@ func (s *SshConfig) UpsertSshConfig(i *do.Injector) error {
 	s.MachineID = sshConfig.MachineID
 	s.Host = sshConfig.Host
 	s.Values = sshConfig.Values
-	s.IdentityFile = sshConfig.IdentityFile
+	s.IdentityFiles = sshConfig.IdentityFiles
 	return nil
 }
 
 func (s *SshConfig) UpsertSshConfigTx(i *do.Injector, tx pgx.Tx) error {
 	q := do.MustInvoke[query.QueryServiceTx[SshConfig]](i)
-	sshConfig, err := q.QueryOne(tx, "insert into ssh_configs (user_id, machine_id, host, values, identity_file) values ($1, $2, $3, $4, $5) on conflict (user_id, machine_id, host) do update set host = $3, values = $4, identity_file = $5 returning *", s.UserID, s.MachineID, s.Host, s.Values, s.IdentityFile)
+	sshConfig, err := q.QueryOne(tx, "insert into ssh_configs (user_id, machine_id, host, values, identity_files) values ($1, $2, $3, $4, $5) on conflict (user_id, machine_id, host) do update set host = $3, values = $4, identity_files = $5 returning *", s.UserID, s.MachineID, s.Host, s.Values, s.IdentityFiles)
 	if err != nil {
 		return err
 	}
@@ -68,6 +68,6 @@ func (s *SshConfig) UpsertSshConfigTx(i *do.Injector, tx pgx.Tx) error {
 	s.MachineID = sshConfig.MachineID
 	s.Host = sshConfig.Host
 	s.Values = sshConfig.Values
-	s.IdentityFile = sshConfig.IdentityFile
+	s.IdentityFiles = sshConfig.IdentityFiles
 	return nil
 }

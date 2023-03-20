@@ -91,6 +91,8 @@ github.com/therealpaulgg/ssh-sync v0.1.5 h1:5TKetMpWaGgLF7FdrqN/yQfplN61F5Y8/fe2
 github.com/therealpaulgg/ssh-sync v0.1.5/go.mod h1:vfadGVAZqMe5QLSgWuBwvnLsrJPY3Lr2yRAIMFHaCKk=
 github.com/therealpaulgg/ssh-sync v0.2.0 h1:0ejYywbNJ/pXv5JxMWdaDstzYNjpbjBmxx51UOHWWRk=
 github.com/therealpaulgg/ssh-sync v0.2.0/go.mod h1:vfadGVAZqMe5QLSgWuBwvnLsrJPY3Lr2yRAIMFHaCKk=
+github.com/therealpaulgg/ssh-sync v0.3.0 h1:XFgcZ3JcccqmPFinWmweNPAYwX2yFiwbCQAJsjaFIq8=
+github.com/therealpaulgg/ssh-sync v0.3.0/go.mod h1:vfadGVAZqMe5QLSgWuBwvnLsrJPY3Lr2yRAIMFHaCKk=
 github.com/urfave/cli/v2 v2.23.7 h1:YHDQ46s3VghFHFf1DdF+Sh7H4RqhcM+t0TmZRJx4oJY=
 github.com/urfave/cli/v2 v2.23.7/go.mod h1:GHupkWPMM0M/sj1a2b4wUrWBPzazNrIjouW6fmdJLxc=
 github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 h1:bAn7/zixMGCfxrRTfdpNzjtPYqr8smhKouy9mxVdGPU=
