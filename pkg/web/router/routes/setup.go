@@ -67,14 +67,28 @@ func SetupRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		defer func() {
+			rb := func(tx pgx.Tx) {
+				err := txQueryService.Rollback(tx)
+				if err != nil {
+					log.Err(err).Msg("error rolling back transaction")
+				}
+			}
+			if err != nil {
+				rb(tx)
+			} else {
+				internalErr := txQueryService.Commit(tx)
+				if internalErr != nil {
+					log.Err(err).Msg("error committing transaction")
+					rb(tx)
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+			}
+		}()
 		user := models.User{}
 		user.Username = userDto.Username
 		err = user.CreateUserTx(i, tx)
 		if err != nil {
-			errTx := txQueryService.Rollback(tx)
-			if errTx != nil {
-				log.Err(err).Msg("error rolling back transaction")
-			}
 			if errors.Is(err, models.ErrUserAlreadyExists) {
 				w.WriteHeader(http.StatusConflict)
 				return
@@ -89,25 +103,11 @@ func SetupRoutes(i *do.Injector) chi.Router {
 		machine.PublicKey = fileBytes
 		err = machine.CreateMachineTx(i, tx)
 		if err != nil {
-			errTx := txQueryService.Rollback(tx)
-			if errTx != nil {
-				log.Err(err).Msg("error rolling back transaction")
-			}
 			if errors.Is(err, models.ErrMachineAlreadyExists) {
 				w.WriteHeader(http.StatusConflict)
 				return
 			}
 			log.Err(err).Msg("error creating machine")
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		err = txQueryService.Commit(tx)
-		if err != nil {
-			log.Err(err).Msg("error committing transaction")
-			err = txQueryService.Rollback(tx)
-			if err != nil {
-				log.Err(err).Msg("error rolling back transaction")
-			}
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}

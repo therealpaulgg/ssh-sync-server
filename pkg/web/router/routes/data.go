@@ -50,9 +50,9 @@ func DataRoutes(i *do.Injector) chi.Router {
 			}),
 			SshConfig: lo.Map(user.Config, func(conf models.SshConfig, index int) dto.SshConfigDto {
 				return dto.SshConfigDto{
-					Host:         conf.Host,
-					Values:       conf.Values,
-					IdentityFile: conf.IdentityFile,
+					Host:          conf.Host,
+					Values:        conf.Values,
+					IdentityFiles: conf.IdentityFiles,
 				}
 			}),
 		}
@@ -73,27 +73,30 @@ func DataRoutes(i *do.Injector) chi.Router {
 		}
 		err := r.ParseMultipartForm(32 << 20)
 		if err != nil {
+			log.Err(err).Msg("could not parse multipart form")
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		m := r.MultipartForm
 		sshConfigDataRaw := r.FormValue("ssh_config")
 		if sshConfigDataRaw == "" {
+			log.Debug().Msg("ssh config is empty")
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		var sshConfig []dto.SshConfigDto
 		if err := json.NewDecoder(bytes.NewBufferString(sshConfigDataRaw)).Decode(&sshConfig); err != nil {
+			log.Debug().Err(err).Msg("could not decode ssh config")
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		sshConfigData := lo.Map(sshConfig, func(conf dto.SshConfigDto, i int) models.SshConfig {
 			return models.SshConfig{
-				UserID:       user.ID,
-				MachineID:    machine.ID,
-				Host:         conf.Host,
-				Values:       conf.Values,
-				IdentityFile: conf.IdentityFile,
+				UserID:        user.ID,
+				MachineID:     machine.ID,
+				Host:          conf.Host,
+				Values:        conf.Values,
+				IdentityFiles: conf.IdentityFiles,
 			}
 		})
 		user.Config = sshConfigData
@@ -104,7 +107,25 @@ func DataRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		if err := user.AddAndUpdateConfigTx(i, tx); err != nil {
+		defer func() {
+			rb := func(tx pgx.Tx) {
+				err := txQueryService.Rollback(tx)
+				if err != nil {
+					log.Err(err).Msg("error rolling back transaction")
+				}
+			}
+			if err != nil {
+				rb(tx)
+			} else {
+				internalErr := txQueryService.Commit(tx)
+				if internalErr != nil {
+					log.Err(err).Msg("error committing transaction")
+					rb(tx)
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+			}
+		}()
+		if err = user.AddAndUpdateConfigTx(i, tx); err != nil {
 			log.Err(err).Msg("could not add config")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -112,10 +133,6 @@ func DataRoutes(i *do.Injector) chi.Router {
 		var files []*multipart.FileHeader
 		for _, filelist := range m.File {
 			files = append(files, filelist...)
-		}
-		if len(files) == 0 {
-			w.WriteHeader(http.StatusBadRequest)
-			return
 		}
 		for i := range files {
 			file, err := files[i].Open()
@@ -130,23 +147,13 @@ func DataRoutes(i *do.Injector) chi.Router {
 				Filename: files[i].Filename,
 				Data:     make([]byte, files[i].Size),
 			})
-			if _, err := file.Read(user.Keys[i].Data); err != nil {
+			if _, err = file.Read(user.Keys[i].Data); err != nil {
 				log.Err(err).Msg("could not open file")
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 		}
-		if err := user.AddAndUpdateKeysTx(i, tx); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		err = txQueryService.Commit(tx)
-		if err != nil {
-			log.Err(err).Msg("error committing transaction")
-			err = txQueryService.Rollback(tx)
-			if err != nil {
-				log.Err(err).Msg("error rolling back transaction")
-			}
+		if err = user.AddAndUpdateKeysTx(i, tx); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
