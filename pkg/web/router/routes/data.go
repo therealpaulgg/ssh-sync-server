@@ -18,10 +18,8 @@ import (
 	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
 
-func DataRoutes(i *do.Injector) chi.Router {
-	r := chi.NewRouter()
-	r.Use(middleware.ConfigureAuth(i))
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+func getData(i *do.Injector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
 		if !ok {
 			log.Err(errors.New("could not get user from context"))
@@ -57,7 +55,13 @@ func DataRoutes(i *do.Injector) chi.Router {
 			}),
 		}
 		json.NewEncoder(w).Encode(dto)
-	})
+	}
+}
+
+func DataRoutes(i *do.Injector) chi.Router {
+	r := chi.NewRouter()
+	r.Use(middleware.ConfigureAuth(i))
+	r.Get("/", getData(i))
 	r.Post("/", func(w http.ResponseWriter, r *http.Request) {
 		user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
 		if !ok {
