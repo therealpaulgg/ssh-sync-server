@@ -49,3 +49,53 @@ func TestGetUser(t *testing.T) {
 	}
 	assert.Equal(t, username, userDto.Username)
 }
+
+func TestUserNotFound(t *testing.T) {
+	// Arrange
+	username := "test"
+	req, err := http.NewRequest("GET", fmt.Sprintf("/%s", username), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockQueryServiceUser := query.NewMockQueryService[models.User](ctrl)
+	mockQueryServiceUser.EXPECT().QueryOne(gomock.Any(), username).Return(nil, nil)
+	do.Provide(injector, func(i *do.Injector) (query.QueryService[models.User], error) {
+		return mockQueryServiceUser, nil
+	})
+
+	// Act
+	rr := httptest.NewRecorder()
+	UserRoutes(injector).ServeHTTP(rr, req)
+	// Assert
+	if status := rr.Code; status != http.StatusNotFound {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+}
+
+func TestUserInternalServerError(t *testing.T) {
+	// Arrange
+	username := "test"
+	req, err := http.NewRequest("GET", fmt.Sprintf("/%s", username), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockQueryServiceUser := query.NewMockQueryService[models.User](ctrl)
+	mockQueryServiceUser.EXPECT().QueryOne(gomock.Any(), username).Return(nil, fmt.Errorf("error"))
+	do.Provide(injector, func(i *do.Injector) (query.QueryService[models.User], error) {
+		return mockQueryServiceUser, nil
+	})
+
+	// Act
+	rr := httptest.NewRecorder()
+	UserRoutes(injector).ServeHTTP(rr, req)
+	// Assert
+	if status := rr.Code; status != http.StatusInternalServerError {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+}
