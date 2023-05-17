@@ -31,6 +31,5 @@ func UserRoutes(i *do.Injector) chi.Router {
 		}
 		json.NewEncoder(w).Encode(userDto)
 	})
-
 	return r
 }
