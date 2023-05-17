@@ -16,8 +16,23 @@ func GenerateUser() *models.User {
 	}
 }
 
+func GenerateMachine() *models.Machine {
+	return &models.Machine{
+		ID:        uuid.New(),
+		UserID:    uuid.New(),
+		Name:      "test",
+		PublicKey: []byte("test"),
+	}
+}
+
 func AddUserContext(req *http.Request, user *models.User) *http.Request {
 	ctx := req.Context()
 	ctx = context.WithValue(ctx, middleware.UserContextKey, user)
+	return req.Clone(ctx)
+}
+
+func AddMachineContext(req *http.Request, machine *models.Machine) *http.Request {
+	ctx := req.Context()
+	ctx = context.WithValue(ctx, middleware.MachineContextKey, machine)
 	return req.Clone(ctx)
 }

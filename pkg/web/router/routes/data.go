@@ -58,11 +58,8 @@ func getData(i *do.Injector) http.HandlerFunc {
 	}
 }
 
-func DataRoutes(i *do.Injector) chi.Router {
-	r := chi.NewRouter()
-	r.Use(middleware.ConfigureAuth(i))
-	r.Get("/", getData(i))
-	r.Post("/", func(w http.ResponseWriter, r *http.Request) {
+func addData(i *do.Injector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
 		if !ok {
 			log.Err(errors.New("could not get user from context"))
@@ -161,6 +158,13 @@ func DataRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-	})
+	}
+}
+
+func DataRoutes(i *do.Injector) chi.Router {
+	r := chi.NewRouter()
+	r.Use(middleware.ConfigureAuth(i))
+	r.Get("/", getData(i))
+	r.Post("/", addData(i))
 	return r
 }
