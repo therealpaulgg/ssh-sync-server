@@ -45,5 +45,14 @@ func SetupServices(i *do.Injector) {
 	do.Provide(i, func(i *do.Injector) (repository.UserRepository, error) {
 		return &repository.UserRepo{Injector: i}, nil
 	})
+	do.Provide(i, func(i *do.Injector) (repository.MachineRepository, error) {
+		return &repository.MachineRepo{Injector: i}, nil
+	})
+	do.Provide(i, func(i *do.Injector) (repository.SshKeyRepository, error) {
+		return &repository.SshKeyRepo{Injector: i}, nil
+	})
+	do.Provide(i, func(i *do.Injector) (repository.SshConfigRepository, error) {
+		return &repository.SshConfigRepo{Injector: i}, nil
+	})
 
 }

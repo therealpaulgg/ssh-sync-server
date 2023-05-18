@@ -195,18 +195,3 @@ func (mr *MockUserRepositoryMockRecorder) GetUserKeys(id interface{}) *gomock.Ca
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserKeys", reflect.TypeOf((*MockUserRepository)(nil).GetUserKeys), id)
 }
-
-// GetUserMachines mocks base method.
-func (m *MockUserRepository) GetUserMachines(id uuid.UUID) ([]models.Machine, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserMachines", id)
-	ret0, _ := ret[0].([]models.Machine)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserMachines indicates an expected call of GetUserMachines.
-func (mr *MockUserRepositoryMockRecorder) GetUserMachines(id interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserMachines", reflect.TypeOf((*MockUserRepository)(nil).GetUserMachines), id)
-}
