@@ -86,10 +86,9 @@ func MachineRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		machine := models.Machine{}
-		machine.Name = deleteRequest.MachineName
-		machine.UserID = user.ID
-		if err := machine.GetMachineByNameAndUser(i); errors.Is(err, sql.ErrNoRows) {
+		machineRepo := do.MustInvoke[repository.MachineRepository](i)
+		machine, err := machineRepo.GetMachineByNameAndUser(deleteRequest.MachineName, user.ID)
+		if errors.Is(err, sql.ErrNoRows) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		} else if err != nil {
@@ -97,7 +96,7 @@ func MachineRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		if err := machine.DeleteMachine(i); err != nil {
+		if err := machineRepo.DeleteMachine(machine.ID); err != nil {
 			log.Err(err).Msg("Error deleting machine")
 			w.WriteHeader(http.StatusInternalServerError)
 			return

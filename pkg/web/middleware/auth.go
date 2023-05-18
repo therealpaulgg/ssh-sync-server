@@ -13,7 +13,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
-	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 )
 
@@ -60,10 +59,9 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			m := &models.Machine{}
-			m.UserID = user.ID
-			m.Name = machine
-			if err := m.GetMachineByNameAndUser(i); err != nil {
+			machineRepo := do.MustInvoke[repository.MachineRepository](i)
+			m, err := machineRepo.GetMachineByNameAndUser(machine, user.ID)
+			if err != nil {
 				log.Debug().Err(err).Msg("couldnt get machine")
 				w.WriteHeader(http.StatusUnauthorized)
 				return

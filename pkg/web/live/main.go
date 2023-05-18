@@ -127,10 +127,8 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		log.Err(err).Msg("Error getting user by username")
 		return
 	}
-	machine := models.Machine{}
-	machine.Name = userMachine.Data.MachineName
-	machine.UserID = user.ID
-	err = machine.GetMachineByNameAndUser(i)
+	machineRepo := do.MustInvoke[repository.MachineRepository](i)
+	machine, err := machineRepo.GetMachineByNameAndUser(userMachine.Data.MachineName, user.ID)
 	// if the machine already exists, reject
 	if err == nil && machine.ID != uuid.Nil {
 		if err = utils.WriteServerError[dto.MessageDto](&conn, "Machine already exists"); err != nil {
@@ -211,7 +209,7 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	ChallengeResponseDict[challengePhrase].ChallengerChannel <- pubkey.Data.PublicKey
 	encryptedMasterKey := <-ChallengeResponseDict[challengePhrase].ResponderChannel
 	machine.PublicKey = pubkey.Data.PublicKey
-	if err := machine.CreateMachine(i); err != nil {
+	if machine, err = machineRepo.CreateMachine(machine); err != nil {
 		log.Err(err).Msg("Error creating machine")
 		return
 	}

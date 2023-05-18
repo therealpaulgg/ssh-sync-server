@@ -99,13 +99,14 @@ func SetupRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		machine := models.Machine{}
+		machineRepo := do.MustInvoke[repository.MachineRepository](i)
+		machine := &models.Machine{}
 		machine.Name = machineName
 		machine.UserID = user.ID
 		machine.PublicKey = fileBytes
-		err = machine.CreateMachineTx(i, tx)
+		machine, err = machineRepo.CreateMachineTx(machine, tx)
 		if err != nil {
-			if errors.Is(err, models.ErrMachineAlreadyExists) {
+			if errors.Is(err, repository.ErrMachineAlreadyExists) {
 				w.WriteHeader(http.StatusConflict)
 				return
 			}
