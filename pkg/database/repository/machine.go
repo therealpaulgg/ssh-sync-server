@@ -19,6 +19,7 @@ type MachineRepository interface {
 	GetMachineByNameAndUser(machineName string, userID uuid.UUID) (*models.Machine, error)
 	CreateMachine(machine *models.Machine) (*models.Machine, error)
 	CreateMachineTx(machine *models.Machine, tx pgx.Tx) (*models.Machine, error)
+	GetUserMachines(id uuid.UUID) ([]models.Machine, error)
 }
 
 type MachineRepo struct {
@@ -108,4 +109,13 @@ func (repo *MachineRepo) CreateMachineTx(machine *models.Machine, tx pgx.Tx) (*m
 		return nil, sql.ErrNoRows
 	}
 	return newMachine, nil
+}
+
+func (repo *MachineRepo) GetUserMachines(id uuid.UUID) ([]models.Machine, error) {
+	q := do.MustInvoke[query.QueryService[models.Machine]](repo.Injector)
+	machines, err := q.Query("select * from machines where user_id = $1", id)
+	if err != nil {
+		return nil, err
+	}
+	return machines, nil
 }

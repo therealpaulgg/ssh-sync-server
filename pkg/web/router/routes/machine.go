@@ -30,8 +30,8 @@ func MachineRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		userRepo := do.MustInvoke[repository.UserRepository](i)
-		machines, err := userRepo.GetUserMachines(user.ID)
+		machineRepo := do.MustInvoke[repository.MachineRepository](i)
+		machines, err := machineRepo.GetUserMachines(user.ID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -60,8 +60,8 @@ func MachineRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		userRepo := do.MustInvoke[repository.UserRepository](i)
-		machines, err := userRepo.GetUserMachines(user.ID)
+		machineRepo := do.MustInvoke[repository.MachineRepository](i)
+		machines, err := machineRepo.GetUserMachines(user.ID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return

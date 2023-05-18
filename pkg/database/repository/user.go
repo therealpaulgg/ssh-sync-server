@@ -23,7 +23,6 @@ type UserRepository interface {
 	DeleteUser(id uuid.UUID) error
 	GetUserConfig(id uuid.UUID) ([]models.SshConfig, error)
 	GetUserKeys(id uuid.UUID) ([]models.SshKey, error)
-	GetUserMachines(id uuid.UUID) ([]models.Machine, error)
 	AddAndUpdateKeys(user *models.User) error
 	AddAndUpdateKeysTx(user *models.User, tx pgx.Tx) error
 	AddAndUpdateConfig(user *models.User) error
@@ -145,51 +144,55 @@ func (repo *UserRepo) GetUserKeys(id uuid.UUID) ([]models.SshKey, error) {
 	return keys, nil
 }
 
-func (repo *UserRepo) GetUserMachines(id uuid.UUID) ([]models.Machine, error) {
-	q := do.MustInvoke[query.QueryService[models.Machine]](repo.Injector)
-	machines, err := q.Query("select * from machines where user_id = $1", id)
-	if err != nil {
-		return nil, err
-	}
-	return machines, nil
-}
-
 func (repo *UserRepo) AddAndUpdateKeys(user *models.User) error {
-	for _, key := range user.Keys {
-		err := key.UpsertSshKey(repo.Injector)
+	keyRepo := do.MustInvoke[SshKeyRepository](repo.Injector)
+	for i := range user.Keys {
+		keyPtr := &user.Keys[i]
+		newKey, err := keyRepo.UpsertSshKey(keyPtr)
 		if err != nil {
 			return err
 		}
+		*keyPtr = *newKey
 	}
 	return nil
 }
 
 func (repo *UserRepo) AddAndUpdateKeysTx(user *models.User, tx pgx.Tx) error {
-	for _, key := range user.Keys {
-		err := key.UpsertSshKeyTx(repo.Injector, tx)
+	keyRepo := do.MustInvoke[SshKeyRepository](repo.Injector)
+	for i := range user.Keys {
+		keyPtr := &user.Keys[i]
+		newKey, err := keyRepo.UpsertSshKeyTx(keyPtr, tx)
 		if err != nil {
 			return err
 		}
+		*keyPtr = *newKey
 	}
 	return nil
 }
 
 func (repo *UserRepo) AddAndUpdateConfig(user *models.User) error {
-	for _, config := range user.Config {
-		err := config.UpsertSshConfig(repo.Injector)
+	// TODO: is this a good pattern?
+	configRepo := do.MustInvoke[SshConfigRepository](repo.Injector)
+	for i := range user.Config {
+		configPtr := &user.Config[i]
+		newConfig, err := configRepo.UpsertSshConfig(configPtr)
 		if err != nil {
 			return err
 		}
+		*configPtr = *newConfig
 	}
 	return nil
 }
 
 func (repo *UserRepo) AddAndUpdateConfigTx(user *models.User, tx pgx.Tx) error {
-	for _, config := range user.Config {
-		err := config.UpsertSshConfigTx(repo.Injector, tx)
+	configRepo := do.MustInvoke[SshConfigRepository](repo.Injector)
+	for i := range user.Config {
+		configPtr := &user.Config[i]
+		newConfig, err := configRepo.UpsertSshConfigTx(configPtr, tx)
 		if err != nil {
 			return err
 		}
+		*configPtr = *newConfig
 	}
 	return nil
 }
