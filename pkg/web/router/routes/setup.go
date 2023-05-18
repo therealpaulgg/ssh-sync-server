@@ -13,6 +13,7 @@ import (
 	"github.com/samber/do"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/live"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
 	"github.com/therealpaulgg/ssh-sync/pkg/dto"
@@ -85,11 +86,12 @@ func SetupRoutes(i *do.Injector) chi.Router {
 				}
 			}
 		}()
-		user := models.User{}
+		userRepo := do.MustInvoke[repository.UserRepository](i)
+		user := &models.User{}
 		user.Username = userDto.Username
-		err = user.CreateUserTx(i, tx)
+		user, err = userRepo.CreateUserTx(user, tx)
 		if err != nil {
-			if errors.Is(err, models.ErrUserAlreadyExists) {
+			if errors.Is(err, repository.ErrUserAlreadyExists) {
 				w.WriteHeader(http.StatusConflict)
 				return
 			}

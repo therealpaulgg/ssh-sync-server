@@ -12,6 +12,7 @@ import (
 	"github.com/samber/do"
 	"github.com/samber/lo"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
 	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
@@ -29,11 +30,13 @@ func MachineRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		err := user.GetUserMachines(i)
+		userRepo := do.MustInvoke[repository.UserRepository](i)
+		machines, err := userRepo.GetUserMachines(user.ID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		user.Machines = machines
 		machineId, err := uuid.Parse(chi.URLParam(r, "machineId"))
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -57,11 +60,13 @@ func MachineRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		err := user.GetUserMachines(i)
+		userRepo := do.MustInvoke[repository.UserRepository](i)
+		machines, err := userRepo.GetUserMachines(user.ID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		user.Machines = machines
 		machineDtos := make([]dto.MachineDto, len(user.Machines))
 		for i, machine := range user.Machines {
 			machineDtos[i] = dto.MachineDto{

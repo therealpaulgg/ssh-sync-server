@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,7 +12,7 @@ import (
 	"github.com/samber/do"
 	"github.com/stretchr/testify/assert"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
-	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
 
@@ -25,12 +26,12 @@ func TestGetUser(t *testing.T) {
 	injector := do.New()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockQueryServiceUser := query.NewMockQueryService[models.User](ctrl)
-	mockQueryServiceUser.EXPECT().QueryOne(gomock.Any(), username).Return(&models.User{
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	mockUserRepo.EXPECT().GetUserByUsername(username).Return(&models.User{
 		Username: username,
 	}, nil)
-	do.Provide(injector, func(i *do.Injector) (query.QueryService[models.User], error) {
-		return mockQueryServiceUser, nil
+	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
 	})
 
 	// Act
@@ -60,10 +61,10 @@ func TestUserNotFound(t *testing.T) {
 	injector := do.New()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockQueryServiceUser := query.NewMockQueryService[models.User](ctrl)
-	mockQueryServiceUser.EXPECT().QueryOne(gomock.Any(), username).Return(nil, nil)
-	do.Provide(injector, func(i *do.Injector) (query.QueryService[models.User], error) {
-		return mockQueryServiceUser, nil
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	mockUserRepo.EXPECT().GetUserByUsername(username).Return(nil, sql.ErrNoRows)
+	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
 	})
 
 	// Act
@@ -85,10 +86,10 @@ func TestUserInternalServerError(t *testing.T) {
 	injector := do.New()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockQueryServiceUser := query.NewMockQueryService[models.User](ctrl)
-	mockQueryServiceUser.EXPECT().QueryOne(gomock.Any(), username).Return(nil, fmt.Errorf("error"))
-	do.Provide(injector, func(i *do.Injector) (query.QueryService[models.User], error) {
-		return mockQueryServiceUser, nil
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	mockUserRepo.EXPECT().GetUserByUsername(username).Return(nil, fmt.Errorf("error"))
+	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
 	})
 
 	// Act

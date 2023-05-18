@@ -8,16 +8,15 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/samber/do"
-	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
 
 func UserRoutes(i *do.Injector) chi.Router {
 	r := chi.NewRouter()
 	r.Get("/{username}", func(w http.ResponseWriter, r *http.Request) {
-		user := models.User{}
-		user.Username = chi.URLParam(r, "username")
-		err := user.GetUserByUsername(i)
+		userRepo := do.MustInvoke[repository.UserRepository](i)
+		user, err := userRepo.GetUserByUsername(chi.URLParam(r, "username"))
 		if errors.Is(err, sql.ErrNoRows) {
 			w.WriteHeader(http.StatusNotFound)
 			return

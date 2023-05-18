@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 )
 
 type UserKey string
@@ -52,9 +53,9 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			user := &models.User{}
-			user.Username = username
-			if err := user.GetUserByUsername(i); err != nil {
+			userRepo := do.MustInvoke[repository.UserRepository](i)
+			user, err := userRepo.GetUserByUsername(username)
+			if err != nil {
 				log.Debug().Err(err).Msg("couldnt get user")
 				w.WriteHeader(http.StatusUnauthorized)
 				return

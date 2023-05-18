@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/testutils"
 	"github.com/therealpaulgg/ssh-sync-server/test/pgx"
 	"github.com/therealpaulgg/ssh-sync/pkg/dto"
@@ -41,16 +42,11 @@ func TestGetData(t *testing.T) {
 		Filename: "test",
 		Data:     bytes,
 	}}
-	mockQueryServiceSsh := query.NewMockQueryService[models.SshKey](ctrl)
-	mockQueryServiceSsh.EXPECT().Query(gomock.Any(), user.ID).Return(data, nil)
-	do.Provide(injector, func(i *do.Injector) (query.QueryService[models.SshKey], error) {
-		return mockQueryServiceSsh, nil
-	})
-
-	mockQueryServiceConfig := query.NewMockQueryService[models.SshConfig](ctrl)
-	mockQueryServiceConfig.EXPECT().Query(gomock.Any(), user.ID).Return(nil, nil)
-	do.Provide(injector, func(i *do.Injector) (query.QueryService[models.SshConfig], error) {
-		return mockQueryServiceConfig, nil
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	mockUserRepo.EXPECT().GetUserKeys(user.ID).Return(data, nil)
+	mockUserRepo.EXPECT().GetUserConfig(user.ID).Return(nil, nil)
+	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
 	})
 
 	// Act
@@ -90,10 +86,10 @@ func TestGetDataError(t *testing.T) {
 	injector := do.New()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockQueryServiceSsh := query.NewMockQueryService[models.SshKey](ctrl)
-	mockQueryServiceSsh.EXPECT().Query(gomock.Any(), user.ID).Return(nil, errors.New("You are bad"))
-	do.Provide(injector, func(i *do.Injector) (query.QueryService[models.SshKey], error) {
-		return mockQueryServiceSsh, nil
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	mockUserRepo.EXPECT().GetUserKeys(user.ID).Return(nil, errors.New("You are bad"))
+	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
 	})
 
 	// Act
@@ -143,23 +139,18 @@ func TestAddData(t *testing.T) {
 	injector := do.New()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockQueryServiceUser := query.NewMockQueryServiceTx[models.User](ctrl)
 	txMock := pgx.NewMockTx(ctrl)
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	mockUserRepo.EXPECT().AddAndUpdateConfigTx(gomock.Any(), txMock).Return(nil)
+	mockUserRepo.EXPECT().AddAndUpdateKeysTx(gomock.Any(), txMock).Return(nil)
+	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
+	})
+	mockQueryServiceUser := query.NewMockQueryServiceTx[models.User](ctrl)
 	mockQueryServiceUser.EXPECT().StartTx(gomock.Any()).Return(txMock, nil)
 	mockQueryServiceUser.EXPECT().Commit(txMock).Return(nil)
 	do.Provide(injector, func(i *do.Injector) (query.QueryServiceTx[models.User], error) {
 		return mockQueryServiceUser, nil
-	})
-
-	mockQueryServiceConfig := query.NewMockQueryServiceTx[models.SshConfig](ctrl)
-	mockQueryServiceConfig.EXPECT().QueryOne(txMock, gomock.Any(), user.ID, machine.ID, gomock.Any(), gomock.Any(), gomock.Any()).Return(&models.SshConfig{}, nil)
-	do.Provide(injector, func(i *do.Injector) (query.QueryServiceTx[models.SshConfig], error) {
-		return mockQueryServiceConfig, nil
-	})
-	mockQueryServiceKeys := query.NewMockQueryServiceTx[models.SshKey](ctrl)
-	mockQueryServiceKeys.EXPECT().QueryOne(txMock, gomock.Any(), user.ID, gomock.Any(), gomock.Any()).Return(&models.SshKey{}, nil)
-	do.Provide(injector, func(i *do.Injector) (query.QueryServiceTx[models.SshKey], error) {
-		return mockQueryServiceKeys, nil
 	})
 
 	// Act
@@ -188,10 +179,16 @@ func TestAddDataBadRequest(t *testing.T) {
 	machine := testutils.GenerateMachine()
 	req = testutils.AddUserContext(req, user)
 	req = testutils.AddMachineContext(req, machine)
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
+	})
 
 	// Act
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(addData(do.New()))
+	handler := http.HandlerFunc(addData(injector))
 	handler.ServeHTTP(rr, req)
 	// Assert
 
@@ -235,19 +232,20 @@ func TestAddDataError(t *testing.T) {
 	injector := do.New()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockQueryServiceUser := query.NewMockQueryServiceTx[models.User](ctrl)
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
 	txMock := pgx.NewMockTx(ctrl)
+	mockUserRepo.EXPECT().AddAndUpdateConfigTx(gomock.Any(), txMock).Return(nil)
+	mockUserRepo.EXPECT().AddAndUpdateKeysTx(gomock.Any(), txMock).Return(errors.New("error"))
+	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
+	})
+	mockQueryServiceUser := query.NewMockQueryServiceTx[models.User](ctrl)
 	mockQueryServiceUser.EXPECT().StartTx(gomock.Any()).Return(txMock, nil)
 	mockQueryServiceUser.EXPECT().Rollback(txMock).Return(nil)
 	do.Provide(injector, func(i *do.Injector) (query.QueryServiceTx[models.User], error) {
 		return mockQueryServiceUser, nil
 	})
 
-	mockQueryServiceConfig := query.NewMockQueryServiceTx[models.SshConfig](ctrl)
-	mockQueryServiceConfig.EXPECT().QueryOne(txMock, gomock.Any(), user.ID, machine.ID, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New("error"))
-	do.Provide(injector, func(i *do.Injector) (query.QueryServiceTx[models.SshConfig], error) {
-		return mockQueryServiceConfig, nil
-	})
 	// Act
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(addData(injector))

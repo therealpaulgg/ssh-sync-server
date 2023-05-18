@@ -5,6 +5,7 @@ import (
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 )
 
 func SetupServices(i *do.Injector) {
@@ -40,6 +41,9 @@ func SetupServices(i *do.Injector) {
 	do.Provide(i, func(i *do.Injector) (query.QueryServiceTx[models.SshConfig], error) {
 		dataAccessor := do.MustInvoke[database.DataAccessor](i)
 		return &query.QueryServiceTxImpl[models.SshConfig]{DataAccessor: dataAccessor}, nil
+	})
+	do.Provide(i, func(i *do.Injector) (repository.UserRepository, error) {
+		return &repository.UserRepo{Injector: i}, nil
 	})
 
 }

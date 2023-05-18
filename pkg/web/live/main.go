@@ -14,6 +14,7 @@ import (
 	"github.com/samber/do"
 	"github.com/sethvargo/go-diceware/diceware"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
 	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 	"github.com/therealpaulgg/ssh-sync/pkg/utils"
@@ -114,9 +115,8 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		log.Err(err).Msg("Error reading client message")
 		return
 	}
-	user := models.User{}
-	user.Username = userMachine.Data.Username
-	err = user.GetUserByUsername(i)
+	userRepo := do.MustInvoke[repository.UserRepository](i)
+	user, err := userRepo.GetUserByUsername(userMachine.Data.Username)
 	if errors.Is(err, sql.ErrNoRows) {
 		if err := utils.WriteServerError[dto.MessageDto](&conn, "User not found"); err != nil {
 			log.Err(err).Msg("Error writing server error")

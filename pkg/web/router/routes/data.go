@@ -14,6 +14,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
 	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
@@ -26,15 +27,19 @@ func getData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		err := user.GetUserKeys(i)
+		userRepo := do.MustInvoke[repository.UserRepository](i)
+		keys, err := userRepo.GetUserKeys(user.ID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		if err := user.GetUserConfig(i); err != nil {
+		user.Keys = keys
+		config, err := userRepo.GetUserConfig(user.ID)
+		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		user.Config = config
 		dto := dto.DataDto{
 			ID:       user.ID,
 			Username: user.Username,
@@ -72,6 +77,7 @@ func addData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		userRepo := do.MustInvoke[repository.UserRepository](i)
 		err := r.ParseMultipartForm(32 << 20)
 		if err != nil {
 			log.Err(err).Msg("could not parse multipart form")
@@ -126,7 +132,7 @@ func addData(i *do.Injector) http.HandlerFunc {
 				}
 			}
 		}()
-		if err = user.AddAndUpdateConfigTx(i, tx); err != nil {
+		if err = userRepo.AddAndUpdateConfigTx(user, tx); err != nil {
 			log.Err(err).Msg("could not add config")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -154,7 +160,7 @@ func addData(i *do.Injector) http.HandlerFunc {
 				return
 			}
 		}
-		if err = user.AddAndUpdateKeysTx(i, tx); err != nil {
+		if err = userRepo.AddAndUpdateKeysTx(user, tx); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
