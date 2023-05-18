@@ -31,7 +31,12 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 				return
 			}
 			re := regexp.MustCompile(`Bearer (.*)`)
-			tokenString := re.FindStringSubmatch(authHeader)[1]
+			submatches := re.FindStringSubmatch(authHeader)
+			if len(submatches) < 2 {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			tokenString := submatches[1]
 			if tokenString == "" {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
