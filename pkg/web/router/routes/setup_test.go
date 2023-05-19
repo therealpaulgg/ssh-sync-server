@@ -77,3 +77,5 @@ func TestInitialSetup(t *testing.T) {
 			status, http.StatusOK)
 	}
 }
+
+// TODO non-happy-paths
