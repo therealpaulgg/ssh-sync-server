@@ -21,10 +21,8 @@ type DeleteRequest struct {
 	MachineName string `json:"machine_name"`
 }
 
-func MachineRoutes(i *do.Injector) chi.Router {
-	r := chi.NewRouter()
-	r.Use(middleware.ConfigureAuth(i))
-	r.Get("/{machineId}", func(w http.ResponseWriter, r *http.Request) {
+func getMachineById(i *do.Injector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
 		if !ok {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -53,8 +51,11 @@ func MachineRoutes(i *do.Injector) chi.Router {
 			Name: machine.Name,
 		}
 		json.NewEncoder(w).Encode(machineDto)
-	})
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+	}
+}
+
+func getMachines(i *do.Injector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
 		if !ok {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -74,8 +75,11 @@ func MachineRoutes(i *do.Injector) chi.Router {
 			}
 		}
 		json.NewEncoder(w).Encode(machineDtos)
-	})
-	r.Delete("/", func(w http.ResponseWriter, r *http.Request) {
+	}
+}
+
+func deleteMachine(i *do.Injector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
 		if !ok {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -101,6 +105,14 @@ func MachineRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-	})
+	}
+}
+
+func MachineRoutes(i *do.Injector) chi.Router {
+	r := chi.NewRouter()
+	r.Use(middleware.ConfigureAuth(i))
+	r.Get("/{machineId}", getMachineById(i))
+	r.Get("/", getMachines(i))
+	r.Delete("/", deleteMachine(i))
 	return r
 }

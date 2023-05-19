@@ -171,7 +171,6 @@ func (repo *UserRepo) AddAndUpdateKeysTx(user *models.User, tx pgx.Tx) error {
 }
 
 func (repo *UserRepo) AddAndUpdateConfig(user *models.User) error {
-	// TODO: is this a good pattern?
 	configRepo := do.MustInvoke[SshConfigRepository](repo.Injector)
 	for i := range user.Config {
 		configPtr := &user.Config[i]

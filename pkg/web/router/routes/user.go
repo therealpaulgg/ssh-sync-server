@@ -12,9 +12,8 @@ import (
 	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
 
-func UserRoutes(i *do.Injector) chi.Router {
-	r := chi.NewRouter()
-	r.Get("/{username}", func(w http.ResponseWriter, r *http.Request) {
+func getUser(i *do.Injector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		userRepo := do.MustInvoke[repository.UserRepository](i)
 		user, err := userRepo.GetUserByUsername(chi.URLParam(r, "username"))
 		if errors.Is(err, sql.ErrNoRows) {
@@ -29,6 +28,11 @@ func UserRoutes(i *do.Injector) chi.Router {
 			Username: user.Username,
 		}
 		json.NewEncoder(w).Encode(userDto)
-	})
+	}
+}
+
+func UserRoutes(i *do.Injector) chi.Router {
+	r := chi.NewRouter()
+	r.Get("/{username}", getUser(i))
 	return r
 }

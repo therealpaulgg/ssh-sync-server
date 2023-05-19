@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-chi/chi"
 	"github.com/golang/mock/gomock"
 	"github.com/samber/do"
 	"github.com/stretchr/testify/assert"
@@ -36,8 +37,9 @@ func TestGetUser(t *testing.T) {
 
 	// Act
 	rr := httptest.NewRecorder()
-	// TODO: want to use this same pattern for data_test but the auth middleware is in the way
-	UserRoutes(injector).ServeHTTP(rr, req)
+	router := chi.NewRouter()
+	router.Get("/{username}", getUser(injector))
+	router.ServeHTTP(rr, req)
 	// Assert
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
@@ -69,7 +71,9 @@ func TestUserNotFound(t *testing.T) {
 
 	// Act
 	rr := httptest.NewRecorder()
-	UserRoutes(injector).ServeHTTP(rr, req)
+	router := chi.NewRouter()
+	router.Get("/{username}", getUser(injector))
+	router.ServeHTTP(rr, req)
 	// Assert
 	if status := rr.Code; status != http.StatusNotFound {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
@@ -94,7 +98,9 @@ func TestUserInternalServerError(t *testing.T) {
 
 	// Act
 	rr := httptest.NewRecorder()
-	UserRoutes(injector).ServeHTTP(rr, req)
+	router := chi.NewRouter()
+	router.Get("/{username}", getUser(injector))
+	router.ServeHTTP(rr, req)
 	// Assert
 	if status := rr.Code; status != http.StatusInternalServerError {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
