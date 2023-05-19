@@ -15,7 +15,7 @@ import (
 	"github.com/sethvargo/go-diceware/diceware"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
-	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware/context_keys"
 	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 	"github.com/therealpaulgg/ssh-sync/pkg/utils"
 )
@@ -55,7 +55,7 @@ func MachineChallengeResponse(i *do.Injector, r *http.Request, w http.ResponseWr
 func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.ResponseWriter, c *net.Conn) {
 	conn := *c
 	defer conn.Close()
-	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+	user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 	if !ok {
 		log.Warn().Msg("Could not get user from context")
 		return

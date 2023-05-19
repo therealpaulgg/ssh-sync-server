@@ -1,12 +1,7 @@
 package middleware
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
 	"database/sql"
-	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -21,36 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/testutils"
 )
-
-// GenerateTestKeys generates a pair of ecdsa keys
-func GenerateTestKeys() (*ecdsa.PrivateKey, *ecdsa.PublicKey, error) {
-	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	pubKey := &privKey.PublicKey
-	return privKey, pubKey, nil
-}
-
-// EncodeToPem encodes keys into pem format
-func EncodeToPem(privKey *ecdsa.PrivateKey, pubKey *ecdsa.PublicKey) ([]byte, []byte, error) {
-	pubBytes, err := x509.MarshalPKIXPublicKey(pubKey)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	privBytes, err := x509.MarshalECPrivateKey(privKey)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	pubBytes = pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubBytes})
-	privBytes = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: privBytes})
-
-	return pubBytes, privBytes, nil
-}
 
 func GenerateTestToken(username, machine string, key jwk.Key) (string, error) {
 	builder := jwt.NewBuilder()
@@ -76,11 +43,11 @@ func TestConfigureAuth(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	priv, pub, err := GenerateTestKeys()
+	priv, pub, err := testutils.GenerateTestKeys()
 	if err != nil {
 		t.Fatal(err)
 	}
-	pubBytes, privBytes, err := EncodeToPem(priv, pub)
+	pubBytes, privBytes, err := testutils.EncodeToPem(priv, pub)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,11 +100,11 @@ func TestConfigureAuthNoUser(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	priv, pub, err := GenerateTestKeys()
+	priv, pub, err := testutils.GenerateTestKeys()
 	if err != nil {
 		t.Fatal(err)
 	}
-	pubBytes, privBytes, err := EncodeToPem(priv, pub)
+	pubBytes, privBytes, err := testutils.EncodeToPem(priv, pub)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,11 +151,11 @@ func TestConfigureAuthNoMachine(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	priv, pub, err := GenerateTestKeys()
+	priv, pub, err := testutils.GenerateTestKeys()
 	if err != nil {
 		t.Fatal(err)
 	}
-	pubBytes, privBytes, err := EncodeToPem(priv, pub)
+	pubBytes, privBytes, err := testutils.EncodeToPem(priv, pub)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,11 +208,11 @@ func TestConfigureAuthUnsignedToken(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	priv, pub, err := GenerateTestKeys()
+	priv, pub, err := testutils.GenerateTestKeys()
 	if err != nil {
 		t.Fatal(err)
 	}
-	pubBytes, _, err := EncodeToPem(priv, pub)
+	pubBytes, _, err := testutils.EncodeToPem(priv, pub)
 	if err != nil {
 		t.Fatal(err)
 	}

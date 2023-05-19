@@ -14,6 +14,7 @@ import (
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware/context_keys"
 	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
 
@@ -23,7 +24,7 @@ type DeleteRequest struct {
 
 func getMachineById(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 		if !ok {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -56,7 +57,7 @@ func getMachineById(i *do.Injector) http.HandlerFunc {
 
 func getMachines(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 		if !ok {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -80,7 +81,7 @@ func getMachines(i *do.Injector) http.HandlerFunc {
 
 func deleteMachine(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 		if !ok {
 			w.WriteHeader(http.StatusInternalServerError)
 			return

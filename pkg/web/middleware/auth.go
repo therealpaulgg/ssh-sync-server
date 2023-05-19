@@ -14,13 +14,8 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware/context_keys"
 )
-
-type UserKey string
-type MachineKey string
-
-var UserContextKey = UserKey("user")
-var MachineContextKey = MachineKey("machine")
 
 func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -82,8 +77,8 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			ctx := context.WithValue(r.Context(), UserContextKey, user)
-			ctx = context.WithValue(ctx, MachineContextKey, m)
+			ctx := context.WithValue(r.Context(), context_keys.UserContextKey, user)
+			ctx = context.WithValue(ctx, context_keys.MachineContextKey, m)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

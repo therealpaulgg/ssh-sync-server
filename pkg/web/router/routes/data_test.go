@@ -146,11 +146,11 @@ func TestAddData(t *testing.T) {
 	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
 		return mockUserRepo, nil
 	})
-	mockQueryServiceUser := query.NewMockQueryServiceTx[models.User](ctrl)
-	mockQueryServiceUser.EXPECT().StartTx(gomock.Any()).Return(txMock, nil)
-	mockQueryServiceUser.EXPECT().Commit(txMock).Return(nil)
-	do.Provide(injector, func(i *do.Injector) (query.QueryServiceTx[models.User], error) {
-		return mockQueryServiceUser, nil
+	mockTransactionService := query.NewMockTransactionService(ctrl)
+	mockTransactionService.EXPECT().StartTx(gomock.Any()).Return(txMock, nil)
+	mockTransactionService.EXPECT().Commit(txMock).Return(nil)
+	do.Provide(injector, func(i *do.Injector) (query.TransactionService, error) {
+		return mockTransactionService, nil
 	})
 
 	// Act
@@ -239,11 +239,11 @@ func TestAddDataError(t *testing.T) {
 	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
 		return mockUserRepo, nil
 	})
-	mockQueryServiceUser := query.NewMockQueryServiceTx[models.User](ctrl)
-	mockQueryServiceUser.EXPECT().StartTx(gomock.Any()).Return(txMock, nil)
-	mockQueryServiceUser.EXPECT().Rollback(txMock).Return(nil)
-	do.Provide(injector, func(i *do.Injector) (query.QueryServiceTx[models.User], error) {
-		return mockQueryServiceUser, nil
+	mockTransactionService := query.NewMockTransactionService(ctrl)
+	mockTransactionService.EXPECT().StartTx(gomock.Any()).Return(txMock, nil)
+	mockTransactionService.EXPECT().Rollback(txMock).Return(nil)
+	do.Provide(injector, func(i *do.Injector) (query.TransactionService, error) {
+		return mockTransactionService, nil
 	})
 
 	// Act

@@ -11,6 +11,72 @@ import (
 	pgx "github.com/jackc/pgx/v5"
 )
 
+// MockTransactionService is a mock of TransactionService interface.
+type MockTransactionService struct {
+	ctrl     *gomock.Controller
+	recorder *MockTransactionServiceMockRecorder
+}
+
+// MockTransactionServiceMockRecorder is the mock recorder for MockTransactionService.
+type MockTransactionServiceMockRecorder struct {
+	mock *MockTransactionService
+}
+
+// NewMockTransactionService creates a new mock instance.
+func NewMockTransactionService(ctrl *gomock.Controller) *MockTransactionService {
+	mock := &MockTransactionService{ctrl: ctrl}
+	mock.recorder = &MockTransactionServiceMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockTransactionService) EXPECT() *MockTransactionServiceMockRecorder {
+	return m.recorder
+}
+
+// Commit mocks base method.
+func (m *MockTransactionService) Commit(tx pgx.Tx) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Commit", tx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Commit indicates an expected call of Commit.
+func (mr *MockTransactionServiceMockRecorder) Commit(tx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Commit", reflect.TypeOf((*MockTransactionService)(nil).Commit), tx)
+}
+
+// Rollback mocks base method.
+func (m *MockTransactionService) Rollback(tx pgx.Tx) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Rollback", tx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Rollback indicates an expected call of Rollback.
+func (mr *MockTransactionServiceMockRecorder) Rollback(tx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rollback", reflect.TypeOf((*MockTransactionService)(nil).Rollback), tx)
+}
+
+// StartTx mocks base method.
+func (m *MockTransactionService) StartTx(options pgx.TxOptions) (pgx.Tx, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StartTx", options)
+	ret0, _ := ret[0].(pgx.Tx)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StartTx indicates an expected call of StartTx.
+func (mr *MockTransactionServiceMockRecorder) StartTx(options interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartTx", reflect.TypeOf((*MockTransactionService)(nil).StartTx), options)
+}
+
 // MockQueryServiceTx is a mock of QueryServiceTx interface.
 type MockQueryServiceTx[T any] struct {
 	ctrl     *gomock.Controller
@@ -32,20 +98,6 @@ func NewMockQueryServiceTx[T any](ctrl *gomock.Controller) *MockQueryServiceTx[T
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockQueryServiceTx[T]) EXPECT() *MockQueryServiceTxMockRecorder[T] {
 	return m.recorder
-}
-
-// Commit mocks base method.
-func (m *MockQueryServiceTx[T]) Commit(tx pgx.Tx) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Commit", tx)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Commit indicates an expected call of Commit.
-func (mr *MockQueryServiceTxMockRecorder[T]) Commit(tx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Commit", reflect.TypeOf((*MockQueryServiceTx[T])(nil).Commit), tx)
 }
 
 // Insert mocks base method.
@@ -105,33 +157,4 @@ func (mr *MockQueryServiceTxMockRecorder[T]) QueryOne(tx, query interface{}, arg
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{tx, query}, args...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryOne", reflect.TypeOf((*MockQueryServiceTx[T])(nil).QueryOne), varargs...)
-}
-
-// Rollback mocks base method.
-func (m *MockQueryServiceTx[T]) Rollback(tx pgx.Tx) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Rollback", tx)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Rollback indicates an expected call of Rollback.
-func (mr *MockQueryServiceTxMockRecorder[T]) Rollback(tx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rollback", reflect.TypeOf((*MockQueryServiceTx[T])(nil).Rollback), tx)
-}
-
-// StartTx mocks base method.
-func (m *MockQueryServiceTx[T]) StartTx(options pgx.TxOptions) (pgx.Tx, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StartTx", options)
-	ret0, _ := ret[0].(pgx.Tx)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// StartTx indicates an expected call of StartTx.
-func (mr *MockQueryServiceTxMockRecorder[T]) StartTx(options interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartTx", reflect.TypeOf((*MockQueryServiceTx[T])(nil).StartTx), options)
 }

@@ -10,6 +10,10 @@ import (
 
 func SetupServices(i *do.Injector) {
 	do.Provide(i, database.NewDataAccessorService)
+	do.Provide(i, func(i *do.Injector) (query.TransactionService, error) {
+		dataAccessor := do.MustInvoke[database.DataAccessor](i)
+		return &query.TransactionServiceImpl{DataAccessor: dataAccessor}, nil
+	})
 	do.Provide(i, func(i *do.Injector) (query.QueryService[models.Machine], error) {
 		dataAccessor := do.MustInvoke[database.DataAccessor](i)
 		return &query.QueryServiceImpl[models.Machine]{DataAccessor: dataAccessor}, nil

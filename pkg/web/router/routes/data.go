@@ -16,12 +16,13 @@ import (
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware/context_keys"
 	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
 
 func getData(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 		if !ok {
 			log.Err(errors.New("could not get user from context"))
 			w.WriteHeader(http.StatusInternalServerError)
@@ -65,13 +66,13 @@ func getData(i *do.Injector) http.HandlerFunc {
 
 func addData(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 		if !ok {
 			log.Err(errors.New("could not get user from context"))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		machine, ok := r.Context().Value(middleware.MachineContextKey).(*models.Machine)
+		machine, ok := r.Context().Value(context_keys.MachineContextKey).(*models.Machine)
 		if !ok {
 			log.Err(errors.New("could not get machine from context"))
 			w.WriteHeader(http.StatusInternalServerError)
@@ -107,7 +108,7 @@ func addData(i *do.Injector) http.HandlerFunc {
 			}
 		})
 		user.Config = sshConfigData
-		txQueryService := do.MustInvoke[query.QueryServiceTx[models.User]](i)
+		txQueryService := do.MustInvoke[query.TransactionService](i)
 		tx, err := txQueryService.StartTx(pgx.TxOptions{})
 		if err != nil {
 			log.Err(err).Msg("error starting transaction")
