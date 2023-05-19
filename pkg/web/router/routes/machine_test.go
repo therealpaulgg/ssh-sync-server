@@ -108,6 +108,9 @@ func TestDeleteMachine(t *testing.T) {
 	err := json.NewEncoder(body).Encode(DeleteRequest{
 		MachineName: machineName,
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	req, err := http.NewRequest("DELETE", "/", body)
 	if err != nil {
 		t.Fatal(err)
