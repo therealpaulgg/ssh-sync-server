@@ -13,14 +13,9 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
-	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware/context_keys"
 )
-
-type UserKey string
-type MachineKey string
-
-var UserContextKey = UserKey("user")
-var MachineContextKey = MachineKey("machine")
 
 func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -31,7 +26,12 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 				return
 			}
 			re := regexp.MustCompile(`Bearer (.*)`)
-			tokenString := re.FindStringSubmatch(authHeader)[1]
+			submatches := re.FindStringSubmatch(authHeader)
+			if len(submatches) < 2 {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			tokenString := submatches[1]
 			if tokenString == "" {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
@@ -52,17 +52,16 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			user := &models.User{}
-			user.Username = username
-			if err := user.GetUserByUsername(i); err != nil {
+			userRepo := do.MustInvoke[repository.UserRepository](i)
+			user, err := userRepo.GetUserByUsername(username)
+			if err != nil {
 				log.Debug().Err(err).Msg("couldnt get user")
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			m := &models.Machine{}
-			m.UserID = user.ID
-			m.Name = machine
-			if err := m.GetMachineByNameAndUser(i); err != nil {
+			machineRepo := do.MustInvoke[repository.MachineRepository](i)
+			m, err := machineRepo.GetMachineByNameAndUser(machine, user.ID)
+			if err != nil {
 				log.Debug().Err(err).Msg("couldnt get machine")
 				w.WriteHeader(http.StatusUnauthorized)
 				return
@@ -78,8 +77,8 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			ctx := context.WithValue(r.Context(), UserContextKey, user)
-			ctx = context.WithValue(ctx, MachineContextKey, m)
+			ctx := context.WithValue(r.Context(), context_keys.UserContextKey, user)
+			ctx = context.WithValue(ctx, context_keys.MachineContextKey, m)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

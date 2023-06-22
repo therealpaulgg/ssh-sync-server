@@ -5,10 +5,15 @@ import (
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 )
 
 func SetupServices(i *do.Injector) {
 	do.Provide(i, database.NewDataAccessorService)
+	do.Provide(i, func(i *do.Injector) (query.TransactionService, error) {
+		dataAccessor := do.MustInvoke[database.DataAccessor](i)
+		return &query.TransactionServiceImpl{DataAccessor: dataAccessor}, nil
+	})
 	do.Provide(i, func(i *do.Injector) (query.QueryService[models.Machine], error) {
 		dataAccessor := do.MustInvoke[database.DataAccessor](i)
 		return &query.QueryServiceImpl[models.Machine]{DataAccessor: dataAccessor}, nil
@@ -40,6 +45,18 @@ func SetupServices(i *do.Injector) {
 	do.Provide(i, func(i *do.Injector) (query.QueryServiceTx[models.SshConfig], error) {
 		dataAccessor := do.MustInvoke[database.DataAccessor](i)
 		return &query.QueryServiceTxImpl[models.SshConfig]{DataAccessor: dataAccessor}, nil
+	})
+	do.Provide(i, func(i *do.Injector) (repository.UserRepository, error) {
+		return &repository.UserRepo{Injector: i}, nil
+	})
+	do.Provide(i, func(i *do.Injector) (repository.MachineRepository, error) {
+		return &repository.MachineRepo{Injector: i}, nil
+	})
+	do.Provide(i, func(i *do.Injector) (repository.SshKeyRepository, error) {
+		return &repository.SshKeyRepo{Injector: i}, nil
+	})
+	do.Provide(i, func(i *do.Injector) (repository.SshConfigRepository, error) {
+		return &repository.SshConfigRepo{Injector: i}, nil
 	})
 
 }

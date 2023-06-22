@@ -10,6 +10,7 @@ COPY . .
 RUN go mod download
 RUN go mod verify
 
+RUN go test ./... -cover
 RUN go build -o /godocker
 
 FROM scratch

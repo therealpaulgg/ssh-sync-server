@@ -14,7 +14,8 @@ import (
 	"github.com/samber/do"
 	"github.com/sethvargo/go-diceware/diceware"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
-	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware/context_keys"
 	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 	"github.com/therealpaulgg/ssh-sync/pkg/utils"
 )
@@ -54,7 +55,7 @@ func MachineChallengeResponse(i *do.Injector, r *http.Request, w http.ResponseWr
 func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.ResponseWriter, c *net.Conn) {
 	conn := *c
 	defer conn.Close()
-	user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+	user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 	if !ok {
 		log.Warn().Msg("Could not get user from context")
 		return
@@ -114,9 +115,8 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		log.Err(err).Msg("Error reading client message")
 		return
 	}
-	user := models.User{}
-	user.Username = userMachine.Data.Username
-	err = user.GetUserByUsername(i)
+	userRepo := do.MustInvoke[repository.UserRepository](i)
+	user, err := userRepo.GetUserByUsername(userMachine.Data.Username)
 	if errors.Is(err, sql.ErrNoRows) {
 		if err := utils.WriteServerError[dto.MessageDto](&conn, "User not found"); err != nil {
 			log.Err(err).Msg("Error writing server error")
@@ -127,10 +127,8 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		log.Err(err).Msg("Error getting user by username")
 		return
 	}
-	machine := models.Machine{}
-	machine.Name = userMachine.Data.MachineName
-	machine.UserID = user.ID
-	err = machine.GetMachineByNameAndUser(i)
+	machineRepo := do.MustInvoke[repository.MachineRepository](i)
+	machine, err := machineRepo.GetMachineByNameAndUser(userMachine.Data.MachineName, user.ID)
 	// if the machine already exists, reject
 	if err == nil && machine.ID != uuid.Nil {
 		if err = utils.WriteServerError[dto.MessageDto](&conn, "Machine already exists"); err != nil {
@@ -211,7 +209,7 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	ChallengeResponseDict[challengePhrase].ChallengerChannel <- pubkey.Data.PublicKey
 	encryptedMasterKey := <-ChallengeResponseDict[challengePhrase].ResponderChannel
 	machine.PublicKey = pubkey.Data.PublicKey
-	if err := machine.CreateMachine(i); err != nil {
+	if _, err = machineRepo.CreateMachine(machine); err != nil {
 		log.Err(err).Msg("Error creating machine")
 		return
 	}

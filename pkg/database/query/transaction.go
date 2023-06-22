@@ -8,23 +8,38 @@ import (
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database"
 )
 
-type QueryServiceTx[T any] interface {
-	Query(tx pgx.Tx, query string, args ...interface{}) ([]T, error)
-	QueryOne(tx pgx.Tx, query string, args ...interface{}) (*T, error)
-	Insert(tx pgx.Tx, query string, args ...interface{}) error
+type TransactionService interface {
 	StartTx(options pgx.TxOptions) (pgx.Tx, error)
 	Commit(tx pgx.Tx) error
 	Rollback(tx pgx.Tx) error
 }
 
-type QueryServiceTxImpl[T any] struct {
+type TransactionServiceImpl struct {
 	DataAccessor database.DataAccessor
 }
 
-func (q *QueryServiceTxImpl[T]) StartTx(options pgx.TxOptions) (pgx.Tx, error) {
+func (q *TransactionServiceImpl) StartTx(options pgx.TxOptions) (pgx.Tx, error) {
 	var err error
 	tx, err := q.DataAccessor.GetConnection().BeginTx(context.Background(), options)
 	return tx, err
+}
+
+func (q *TransactionServiceImpl) Commit(tx pgx.Tx) error {
+	return tx.Commit(context.Background())
+}
+
+func (q *TransactionServiceImpl) Rollback(tx pgx.Tx) error {
+	return tx.Rollback(context.Background())
+}
+
+type QueryServiceTx[T any] interface {
+	Query(tx pgx.Tx, query string, args ...interface{}) ([]T, error)
+	QueryOne(tx pgx.Tx, query string, args ...interface{}) (*T, error)
+	Insert(tx pgx.Tx, query string, args ...interface{}) error
+}
+
+type QueryServiceTxImpl[T any] struct {
+	DataAccessor database.DataAccessor
 }
 
 func (q *QueryServiceTxImpl[T]) Query(tx pgx.Tx, query string, args ...interface{}) ([]T, error) {
@@ -47,12 +62,4 @@ func (q *QueryServiceTxImpl[T]) QueryOne(tx pgx.Tx, query string, args ...interf
 func (q *QueryServiceTxImpl[T]) Insert(tx pgx.Tx, query string, args ...interface{}) error {
 	_, err := tx.Exec(context.Background(), query, args...)
 	return err
-}
-
-func (q *QueryServiceTxImpl[T]) Commit(tx pgx.Tx) error {
-	return tx.Commit(context.Background())
-}
-
-func (q *QueryServiceTxImpl[T]) Rollback(tx pgx.Tx) error {
-	return tx.Rollback(context.Background())
 }

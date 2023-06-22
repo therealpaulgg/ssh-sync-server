@@ -13,14 +13,14 @@ import (
 	"github.com/samber/do"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/live"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
 	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
 
-func SetupRoutes(i *do.Injector) chi.Router {
-	r := chi.NewRouter()
-	r.Post("/", func(w http.ResponseWriter, r *http.Request) {
+func initialSetup(i *do.Injector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		var userDto dto.UserDto
 		err := r.ParseMultipartForm(32 << 20)
 		if err != nil {
@@ -60,7 +60,7 @@ func SetupRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		txQueryService := do.MustInvoke[query.QueryServiceTx[models.User]](i)
+		txQueryService := do.MustInvoke[query.TransactionService](i)
 		tx, err := txQueryService.StartTx(pgx.TxOptions{})
 		if err != nil {
 			log.Err(err).Msg("error starting transaction")
@@ -85,11 +85,12 @@ func SetupRoutes(i *do.Injector) chi.Router {
 				}
 			}
 		}()
-		user := models.User{}
+		userRepo := do.MustInvoke[repository.UserRepository](i)
+		user := &models.User{}
 		user.Username = userDto.Username
-		err = user.CreateUserTx(i, tx)
+		user, err = userRepo.CreateUserTx(user, tx)
 		if err != nil {
-			if errors.Is(err, models.ErrUserAlreadyExists) {
+			if errors.Is(err, repository.ErrUserAlreadyExists) {
 				w.WriteHeader(http.StatusConflict)
 				return
 			}
@@ -97,13 +98,14 @@ func SetupRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		machine := models.Machine{}
+		machineRepo := do.MustInvoke[repository.MachineRepository](i)
+		machine := &models.Machine{}
 		machine.Name = machineName
 		machine.UserID = user.ID
 		machine.PublicKey = fileBytes
-		err = machine.CreateMachineTx(i, tx)
+		_, err = machineRepo.CreateMachineTx(machine, tx)
 		if err != nil {
-			if errors.Is(err, models.ErrMachineAlreadyExists) {
+			if errors.Is(err, repository.ErrMachineAlreadyExists) {
 				w.WriteHeader(http.StatusConflict)
 				return
 			}
@@ -111,25 +113,38 @@ func SetupRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-	})
-	ch := chi.NewRouter()
-	ch.Use(middleware.ConfigureAuth(i))
-	ch.Get("/", func(w http.ResponseWriter, r *http.Request) {
+	}
+}
+
+func challengeResponse(i *do.Injector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		err := live.MachineChallengeResponse(i, r, w)
 		if err != nil {
 			log.Err(err).Msg("error with challenge response creation")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-	})
-	r.Mount("/challenge", ch)
-	r.Get("/existing", func(w http.ResponseWriter, r *http.Request) {
+	}
+}
+
+func getExisting(i *do.Injector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		err := live.NewMachineChallenge(i, r, w)
 		if err != nil {
 			log.Err(err).Msg("error creating challenge")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-	})
+	}
+}
+
+func SetupRoutes(i *do.Injector) chi.Router {
+	r := chi.NewRouter()
+	r.Post("/", initialSetup(i))
+	ch := chi.NewRouter()
+	ch.Use(middleware.ConfigureAuth(i))
+	ch.Get("/", challengeResponse(i))
+	r.Mount("/challenge", ch)
+	r.Get("/existing", getExisting(i))
 	return r
 }

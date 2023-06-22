@@ -14,29 +14,33 @@ import (
 	"github.com/samber/lo"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware/context_keys"
 	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
 
-func DataRoutes(i *do.Injector) chi.Router {
-	r := chi.NewRouter()
-	r.Use(middleware.ConfigureAuth(i))
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+func getData(i *do.Injector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 		if !ok {
 			log.Err(errors.New("could not get user from context"))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		err := user.GetUserKeys(i)
+		userRepo := do.MustInvoke[repository.UserRepository](i)
+		keys, err := userRepo.GetUserKeys(user.ID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		if err := user.GetUserConfig(i); err != nil {
+		user.Keys = keys
+		config, err := userRepo.GetUserConfig(user.ID)
+		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		user.Config = config
 		dto := dto.DataDto{
 			ID:       user.ID,
 			Username: user.Username,
@@ -57,20 +61,24 @@ func DataRoutes(i *do.Injector) chi.Router {
 			}),
 		}
 		json.NewEncoder(w).Encode(dto)
-	})
-	r.Post("/", func(w http.ResponseWriter, r *http.Request) {
-		user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+	}
+}
+
+func addData(i *do.Injector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 		if !ok {
 			log.Err(errors.New("could not get user from context"))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		machine, ok := r.Context().Value(middleware.MachineContextKey).(*models.Machine)
+		machine, ok := r.Context().Value(context_keys.MachineContextKey).(*models.Machine)
 		if !ok {
 			log.Err(errors.New("could not get machine from context"))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		userRepo := do.MustInvoke[repository.UserRepository](i)
 		err := r.ParseMultipartForm(32 << 20)
 		if err != nil {
 			log.Err(err).Msg("could not parse multipart form")
@@ -100,7 +108,7 @@ func DataRoutes(i *do.Injector) chi.Router {
 			}
 		})
 		user.Config = sshConfigData
-		txQueryService := do.MustInvoke[query.QueryServiceTx[models.User]](i)
+		txQueryService := do.MustInvoke[query.TransactionService](i)
 		tx, err := txQueryService.StartTx(pgx.TxOptions{})
 		if err != nil {
 			log.Err(err).Msg("error starting transaction")
@@ -125,7 +133,7 @@ func DataRoutes(i *do.Injector) chi.Router {
 				}
 			}
 		}()
-		if err = user.AddAndUpdateConfigTx(i, tx); err != nil {
+		if err = userRepo.AddAndUpdateConfigTx(user, tx); err != nil {
 			log.Err(err).Msg("could not add config")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -153,10 +161,17 @@ func DataRoutes(i *do.Injector) chi.Router {
 				return
 			}
 		}
-		if err = user.AddAndUpdateKeysTx(i, tx); err != nil {
+		if err = userRepo.AddAndUpdateKeysTx(user, tx); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-	})
+	}
+}
+
+func DataRoutes(i *do.Injector) chi.Router {
+	r := chi.NewRouter()
+	r.Use(middleware.ConfigureAuth(i))
+	r.Get("/", getData(i))
+	r.Post("/", addData(i))
 	return r
 }

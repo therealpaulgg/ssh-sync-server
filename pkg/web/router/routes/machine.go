@@ -12,7 +12,9 @@ import (
 	"github.com/samber/do"
 	"github.com/samber/lo"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware/context_keys"
 	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
 
@@ -20,20 +22,20 @@ type DeleteRequest struct {
 	MachineName string `json:"machine_name"`
 }
 
-func MachineRoutes(i *do.Injector) chi.Router {
-	r := chi.NewRouter()
-	r.Use(middleware.ConfigureAuth(i))
-	r.Get("/{machineId}", func(w http.ResponseWriter, r *http.Request) {
-		user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+func getMachineById(i *do.Injector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 		if !ok {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		err := user.GetUserMachines(i)
+		machineRepo := do.MustInvoke[repository.MachineRepository](i)
+		machines, err := machineRepo.GetUserMachines(user.ID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		user.Machines = machines
 		machineId, err := uuid.Parse(chi.URLParam(r, "machineId"))
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -50,18 +52,23 @@ func MachineRoutes(i *do.Injector) chi.Router {
 			Name: machine.Name,
 		}
 		json.NewEncoder(w).Encode(machineDto)
-	})
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+	}
+}
+
+func getMachines(i *do.Injector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 		if !ok {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		err := user.GetUserMachines(i)
+		machineRepo := do.MustInvoke[repository.MachineRepository](i)
+		machines, err := machineRepo.GetUserMachines(user.ID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		user.Machines = machines
 		machineDtos := make([]dto.MachineDto, len(user.Machines))
 		for i, machine := range user.Machines {
 			machineDtos[i] = dto.MachineDto{
@@ -69,9 +76,12 @@ func MachineRoutes(i *do.Injector) chi.Router {
 			}
 		}
 		json.NewEncoder(w).Encode(machineDtos)
-	})
-	r.Delete("/", func(w http.ResponseWriter, r *http.Request) {
-		user, ok := r.Context().Value(middleware.UserContextKey).(*models.User)
+	}
+}
+
+func deleteMachine(i *do.Injector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 		if !ok {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -81,10 +91,9 @@ func MachineRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		machine := models.Machine{}
-		machine.Name = deleteRequest.MachineName
-		machine.UserID = user.ID
-		if err := machine.GetMachineByNameAndUser(i); errors.Is(err, sql.ErrNoRows) {
+		machineRepo := do.MustInvoke[repository.MachineRepository](i)
+		machine, err := machineRepo.GetMachineByNameAndUser(deleteRequest.MachineName, user.ID)
+		if errors.Is(err, sql.ErrNoRows) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		} else if err != nil {
@@ -92,11 +101,19 @@ func MachineRoutes(i *do.Injector) chi.Router {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		if err := machine.DeleteMachine(i); err != nil {
+		if err := machineRepo.DeleteMachine(machine.ID); err != nil {
 			log.Err(err).Msg("Error deleting machine")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-	})
+	}
+}
+
+func MachineRoutes(i *do.Injector) chi.Router {
+	r := chi.NewRouter()
+	r.Use(middleware.ConfigureAuth(i))
+	r.Get("/{machineId}", getMachineById(i))
+	r.Get("/", getMachines(i))
+	r.Delete("/", deleteMachine(i))
 	return r
 }
