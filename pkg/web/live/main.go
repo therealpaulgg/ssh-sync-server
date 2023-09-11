@@ -139,7 +139,7 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		log.Err(err).Msg("Error getting machine by name and user")
 		return
 	}
-	machine = models.Machine{}
+	machine = &models.Machine{}
 	machine.Name = userMachine.Data.MachineName
 	machine.UserID = user.ID
 	// We are in an acceptable state, generate a challenge
