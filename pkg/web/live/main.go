@@ -117,7 +117,7 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	}
 	userRepo := do.MustInvoke[repository.UserRepository](i)
 	user, err := userRepo.GetUserByUsername(userMachine.Data.Username)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) || user == nil {
 		if err := utils.WriteServerError[dto.MessageDto](&conn, "User not found"); err != nil {
 			log.Err(err).Msg("Error writing server error")
 		}
@@ -136,10 +136,12 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		}
 		return
 	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
-
 		log.Err(err).Msg("Error getting machine by name and user")
 		return
 	}
+	machine = models.Machine{}
+	machine.Name = userMachine.Data.MachineName
+	machine.UserID = user.ID
 	// We are in an acceptable state, generate a challenge
 	// The server will generate a phrase, sending it back to Computer B. The user will need to type this phrase into Computer A.
 	words, err := diceware.GenerateWithWordList(3, diceware.WordListEffLarge())
