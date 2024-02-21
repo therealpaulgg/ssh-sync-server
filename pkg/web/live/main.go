@@ -46,19 +46,18 @@ type SafeChallengeResponseDict struct {
 	dict map[string]Something
 }
 
-// Now, whenever you access ChallengeResponseDict, use the mutex to synchronize access.
-// For example, when writing to the map:
+// Utility method for safely writing to the dict
 func (c *SafeChallengeResponseDict) WriteChallenge(challengePhrase string, data Something) {
-	c.mux.Lock() // lock before accessing the map
+	c.mux.Lock()
 	c.dict[challengePhrase] = data
-	c.mux.Unlock() // unlock after accessing the map
+	c.mux.Unlock()
 }
 
-// And when reading or deleting from the map:
+// Utility method for safely reading from the dict
 func (c *SafeChallengeResponseDict) ReadChallenge(challengePhrase string) (Something, bool) {
-	c.mux.Lock() // lock before accessing the map
+	c.mux.Lock()
 	data, exists := c.dict[challengePhrase]
-	c.mux.Unlock() // unlock after accessing the map
+	c.mux.Unlock()
 	return data, exists
 }
 
