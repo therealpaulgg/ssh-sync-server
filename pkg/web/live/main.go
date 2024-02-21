@@ -42,29 +42,29 @@ type Something struct {
 }
 
 type SafeChallengeResponseDict struct {
-    mux sync.Mutex
-    dict map[string]Something
+	mux  sync.Mutex
+	dict map[string]Something
 }
 
 // Now, whenever you access ChallengeResponseDict, use the mutex to synchronize access.
 // For example, when writing to the map:
 func (c *SafeChallengeResponseDict) WriteChallenge(challengePhrase string, data Something) {
-    c.mux.Lock()  // lock before accessing the map
-    c.dict[challengePhrase] = data
-    c.mux.Unlock()  // unlock after accessing the map
+	c.mux.Lock() // lock before accessing the map
+	c.dict[challengePhrase] = data
+	c.mux.Unlock() // unlock after accessing the map
 }
 
 // And when reading or deleting from the map:
-func (c* SafeChallengeResponseDict) ReadChallenge(challengePhrase string) (Something, bool) {
-    c.mux.Lock()  // lock before accessing the map
-    data, exists := c.dict[challengePhrase]
-    c.mux.Unlock()  // unlock after accessing the map
-    return data, exists
+func (c *SafeChallengeResponseDict) ReadChallenge(challengePhrase string) (Something, bool) {
+	c.mux.Lock() // lock before accessing the map
+	data, exists := c.dict[challengePhrase]
+	c.mux.Unlock() // unlock after accessing the map
+	return data, exists
 }
 
 var ChallengeResponseChannel = make(chan ChallengeResponse)
 var ChallengeResponseDict = SafeChallengeResponseDict{
-    dict: make(map[string]Something),
+	dict: make(map[string]Something),
 }
 
 func MachineChallengeResponse(i *do.Injector, r *http.Request, w http.ResponseWriter) error {
@@ -208,19 +208,19 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	timer := time.NewTimer(30 * time.Second)
 	go func() {
 		var challengeAcceptedChan chan bool
-	
+
 		// Lock before accessing ChallengeResponseDict
 		ChallengeResponseDict.mux.Lock()
 		if item, exists := ChallengeResponseDict.dict[challengePhrase]; exists {
 			challengeAcceptedChan = item.ChallengeAccepted
 		}
 		ChallengeResponseDict.mux.Unlock()
-	
+
 		// If the channel does not exist, return to avoid a nil channel operation
 		if challengeAcceptedChan == nil {
 			return
 		}
-	
+
 		for {
 			select {
 			case <-timer.C:
@@ -261,8 +261,9 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		log.Err(err).Msg("Error reading client message")
 		return
 	}
-	ChallengeResponseDict[challengePhrase].ChallengerChannel <- pubkey.Data.PublicKey
-	encryptedMasterKey := <-ChallengeResponseDict[challengePhrase].ResponderChannel
+
+	cha.ChallengerChannel <- pubkey.Data.PublicKey
+	encryptedMasterKey := <-cha.ResponderChannel
 	machine.PublicKey = pubkey.Data.PublicKey
 	if _, err = machineRepo.CreateMachine(machine); err != nil {
 		log.Err(err).Msg("Error creating machine")
