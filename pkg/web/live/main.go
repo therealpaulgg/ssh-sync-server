@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gobwas/ws"
@@ -40,8 +41,30 @@ type Something struct {
 	ResponderChannel  chan []byte
 }
 
+type SafeChallengeResponseDict struct {
+	mux  sync.Mutex
+	dict map[string]Something
+}
+
+// Utility method for safely writing to the dict
+func (c *SafeChallengeResponseDict) WriteChallenge(challengePhrase string, data Something) {
+	c.mux.Lock()
+	c.dict[challengePhrase] = data
+	c.mux.Unlock()
+}
+
+// Utility method for safely reading from the dict
+func (c *SafeChallengeResponseDict) ReadChallenge(challengePhrase string) (Something, bool) {
+	c.mux.Lock()
+	data, exists := c.dict[challengePhrase]
+	c.mux.Unlock()
+	return data, exists
+}
+
 var ChallengeResponseChannel = make(chan ChallengeResponse)
-var ChallengeResponseDict = make(map[string]Something)
+var ChallengeResponseDict = SafeChallengeResponseDict{
+	dict: make(map[string]Something),
+}
 
 func MachineChallengeResponse(i *do.Injector, r *http.Request, w http.ResponseWriter) error {
 	conn, _, _, err := ws.UpgradeHTTP(r, w)
@@ -65,7 +88,7 @@ func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.Res
 		log.Err(err).Msg("Error reading client message")
 		return
 	}
-	chalChan, ok := ChallengeResponseDict[foo.Data.Challenge]
+	chalChan, ok := ChallengeResponseDict.ReadChallenge(foo.Data.Challenge)
 	if !ok {
 		log.Warn().Msg("Could not find challenge in dict")
 		if err := utils.WriteServerError[dto.ChallengeSuccessEncryptedKeyDto](&conn, "Invalid challenge response."); err != nil {
@@ -164,26 +187,50 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	// Computer A will receive the public key, decrypt the master key, encrypt the master key with the public key, and send it back to the server.
 	// At this point Computer B will be able to communicate freely.
 
-	ChallengeResponseDict[challengePhrase] = Something{
+	ChallengeResponseDict.WriteChallenge(challengePhrase, Something{
 		Username:          user.Username,
 		ChallengeAccepted: make(chan bool),
 		ChallengerChannel: make(chan []byte),
 		ResponderChannel:  make(chan []byte),
-	}
+	})
 	defer func() {
-		close(ChallengeResponseDict[challengePhrase].ChallengeAccepted)
-		close(ChallengeResponseDict[challengePhrase].ChallengerChannel)
-		close(ChallengeResponseDict[challengePhrase].ResponderChannel)
-		delete(ChallengeResponseDict, challengePhrase)
+		ChallengeResponseDict.mux.Lock()
+		defer ChallengeResponseDict.mux.Unlock()
+		item, exists := ChallengeResponseDict.dict[challengePhrase]
+		if exists {
+			close(item.ChallengeAccepted)
+			close(item.ChallengerChannel)
+			close(item.ResponderChannel)
+			delete(ChallengeResponseDict.dict, challengePhrase)
+		}
 	}()
 	timer := time.NewTimer(30 * time.Second)
 	go func() {
+		var challengeAcceptedChan chan bool
+
+		// Lock before accessing ChallengeResponseDict
+		ChallengeResponseDict.mux.Lock()
+		if item, exists := ChallengeResponseDict.dict[challengePhrase]; exists {
+			challengeAcceptedChan = item.ChallengeAccepted
+		}
+		ChallengeResponseDict.mux.Unlock()
+
+		// If the channel does not exist, return to avoid a nil channel operation
+		if challengeAcceptedChan == nil {
+			return
+		}
+
 		for {
 			select {
 			case <-timer.C:
-				ChallengeResponseDict[challengePhrase].ChallengeAccepted <- false
+				ChallengeResponseDict.mux.Lock()
+				// Check if the challenge still exists before sending to the channel
+				if _, exists := ChallengeResponseDict.dict[challengePhrase]; exists {
+					ChallengeResponseDict.dict[challengePhrase].ChallengeAccepted <- false
+				}
+				ChallengeResponseDict.mux.Unlock()
 				return
-			case chalWon := <-ChallengeResponseDict[challengePhrase].ChallengeAccepted:
+			case chalWon := <-challengeAcceptedChan:
 				if chalWon {
 					timer.Stop()
 				}
@@ -191,7 +238,12 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 			}
 		}
 	}()
-	challengeResult := <-ChallengeResponseDict[challengePhrase].ChallengeAccepted
+	cha, ok := ChallengeResponseDict.ReadChallenge(challengePhrase)
+	if !ok {
+		log.Err(err).Msg("Error getting challenge from dict")
+		return
+	}
+	challengeResult := <-cha.ChallengeAccepted
 
 	if !challengeResult {
 		if err := utils.WriteServerError[dto.MessageDto](&conn, "Challenge timed out"); err != nil {
@@ -208,8 +260,9 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		log.Err(err).Msg("Error reading client message")
 		return
 	}
-	ChallengeResponseDict[challengePhrase].ChallengerChannel <- pubkey.Data.PublicKey
-	encryptedMasterKey := <-ChallengeResponseDict[challengePhrase].ResponderChannel
+
+	cha.ChallengerChannel <- pubkey.Data.PublicKey
+	encryptedMasterKey := <-cha.ResponderChannel
 	machine.PublicKey = pubkey.Data.PublicKey
 	if _, err = machineRepo.CreateMachine(machine); err != nil {
 		log.Err(err).Msg("Error creating machine")
