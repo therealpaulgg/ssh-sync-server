@@ -3,6 +3,7 @@ package live
 import (
 	"database/sql"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -78,6 +79,7 @@ func MachineChallengeResponse(i *do.Injector, r *http.Request, w http.ResponseWr
 func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.ResponseWriter, c *net.Conn) {
 	conn := *c
 	defer conn.Close()
+
 	user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 	if !ok {
 		log.Warn().Msg("Could not get user from context")
@@ -132,6 +134,24 @@ func NewMachineChallenge(i *do.Injector, r *http.Request, w http.ResponseWriter)
 func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.ResponseWriter, c *net.Conn) {
 	conn := *c
 	defer conn.Close()
+	closeChan := make(chan struct{}) // Channel to signal connection closure
+
+	// Start a goroutine to monitor connection for closure
+	go func() {
+		buf := make([]byte, 1)
+
+		for {
+			_, err := conn.Read(buf)
+			if err != nil {
+				if err == io.EOF {
+					close(closeChan)
+				} else {
+					close(closeChan)
+				}
+				return
+			}
+		}
+	}()
 	// first message sent should be JSON payload
 	userMachine, err := utils.ReadClientMessage[dto.UserMachineDto](&conn)
 	if err != nil {
@@ -234,6 +254,15 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 				if chalWon {
 					timer.Stop()
 				}
+				return
+			case <-closeChan:
+				log.Debug().Msg("Connection closed by client")
+				ChallengeResponseDict.mux.Lock()
+				// Check if the challenge still exists before sending to the channel
+				if _, exists := ChallengeResponseDict.dict[challengePhrase]; exists {
+					ChallengeResponseDict.dict[challengePhrase].ChallengeAccepted <- false
+				}
+				ChallengeResponseDict.mux.Unlock()
 				return
 			}
 		}
