@@ -139,6 +139,7 @@ func NewMachineChallenge(i *do.Injector, r *http.Request, w http.ResponseWriter)
 
 func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.ResponseWriter, c *net.Conn) {
 	conn := *c
+ defer conn.Close()
 	// first message sent should be JSON payload
 	userMachine, err := utils.ReadClientMessage[dto.UserMachineDto](&conn)
 	if err != nil {
