@@ -15,8 +15,8 @@ services:
             max-size: 10m
         ports:
           - '3000:3000'
-        image: b44427a64de93c20123c068387b0adc0434434ba709fbd91dd03d33ade489c3e
-        container_name: sshdbg
+        image: therealpaulgg/ssh-sync-server 
+        container_name: ssh-sync-server
     ssh-sync-db:
         image: therealpaulgg/ssh-sync-db:latest 
         container_name: ssh-sync-db-debug
@@ -26,18 +26,17 @@ services:
           - POSTGRES_DB=sshsync
         restart: always
     ssh-sync:
-        image: 62eab8fb32b34e0a2cf36e8635d810c20a38baa2d7beaf5b6918139339e23c23
+        image: 2d277cde6d3ba4b20c2743a62000be589ad767febc24bf04b33106285d7c0457
         container_name: ssh-sync
         stdin_open: true # Allows Docker container to keep STDIN open
         tty: true # Allocates a pseudo-TTY
     ssh-sync-2:
-        image: 62eab8fb32b34e0a2cf36e8635d810c20a38baa2d7beaf5b6918139339e23c23
+        image: 2d277cde6d3ba4b20c2743a62000be589ad767febc24bf04b33106285d7c0457
         container_name: ssh-sync-2
         stdin_open: true # Allows Docker container to keep STDIN open
         tty: true # Allocates a pseudo-TTY
     ssh-sync-3:
-        image: 62eab8fb32b34e0a2cf36e8635d810c20a38baa2d7beaf5b6918139339e23c23
+        image: 2d277cde6d3ba4b20c2743a62000be589ad767febc24bf04b33106285d7c0457
         container_name: ssh-sync-3
         stdin_open: true # Allows Docker container to keep STDIN open
         tty: true # Allocates a pseudo-TTY
-        #http://ssh-sync-server-debug:3000
