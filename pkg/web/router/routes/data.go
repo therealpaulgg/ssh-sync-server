@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
@@ -115,24 +116,7 @@ func addData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		defer func() {
-			rb := func(tx pgx.Tx) {
-				err := txQueryService.Rollback(tx)
-				if err != nil {
-					log.Err(err).Msg("error rolling back transaction")
-				}
-			}
-			if err != nil {
-				rb(tx)
-			} else {
-				internalErr := txQueryService.Commit(tx)
-				if internalErr != nil {
-					log.Err(err).Msg("error committing transaction")
-					rb(tx)
-					w.WriteHeader(http.StatusInternalServerError)
-				}
-			}
-		}()
+		defer query.RollbackFunc(txQueryService, tx, w)
 		if err = userRepo.AddAndUpdateConfigTx(user, tx); err != nil {
 			log.Err(err).Msg("could not add config")
 			w.WriteHeader(http.StatusInternalServerError)
@@ -168,10 +152,48 @@ func addData(i *do.Injector) http.HandlerFunc {
 	}
 }
 
+func deleteData(i *do.Injector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
+		if !ok {
+			log.Err(errors.New("could not get user from context"))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		keyIdStr := chi.URLParam(r, "id")
+		keyId, err := uuid.Parse(keyIdStr)
+		if err != nil {
+			log.Err(err).Msg("could not parse key id")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		userRepo := do.MustInvoke[repository.UserRepo](i)
+		key, err := userRepo.GetUserKey(user, keyId)
+		if err != nil {
+			log.Err(err).Msg("could not get key")
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		txQueryService := do.MustInvoke[query.TransactionService](i)
+		tx, err := txQueryService.StartTx(pgx.TxOptions{})
+		if err != nil {
+			log.Err(err).Msg("error starting transaction")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if err = userRepo.DeleteUserKeyTx(user, key.ID, tx); err != nil {
+			log.Err(err).Msg("could not delete key")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
+}
+
 func DataRoutes(i *do.Injector) chi.Router {
 	r := chi.NewRouter()
 	r.Use(middleware.ConfigureAuth(i))
 	r.Get("/", getData(i))
 	r.Post("/", addData(i))
+	r.Delete("/key/{id}", deleteData(i))
 	return r
 }

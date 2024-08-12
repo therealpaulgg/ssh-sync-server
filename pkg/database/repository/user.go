@@ -23,10 +23,12 @@ type UserRepository interface {
 	DeleteUser(id uuid.UUID) error
 	GetUserConfig(id uuid.UUID) ([]models.SshConfig, error)
 	GetUserKeys(id uuid.UUID) ([]models.SshKey, error)
+	GetUserKey(userId uuid.UUID, keyId uuid.UUID) (*models.SshKey, error)
 	AddAndUpdateKeys(user *models.User) error
 	AddAndUpdateKeysTx(user *models.User, tx pgx.Tx) error
 	AddAndUpdateConfig(user *models.User) error
 	AddAndUpdateConfigTx(user *models.User, tx pgx.Tx) error
+	DeleteUserKeyTx(user *models.User, id uuid.UUID, tx pgx.Tx) error
 }
 
 type UserRepo struct {
@@ -194,4 +196,21 @@ func (repo *UserRepo) AddAndUpdateConfigTx(user *models.User, tx pgx.Tx) error {
 		*configPtr = *newConfig
 	}
 	return nil
+}
+
+func (repo *UserRepo) GetUserKey(userId uuid.UUID, keyId uuid.UUID) (*models.SshKey, error) {
+	q := do.MustInvoke[query.QueryService[models.SshKey]](repo.Injector)
+	key, err := q.QueryOne("select * from ssh_keys where user_id = $1 and id = $2", userId, keyId)
+	if err != nil {
+		return nil, err
+	}
+	if key == nil {
+		return nil, sql.ErrNoRows
+	}
+	return key, nil
+}
+
+func (repo *UserRepo) DeleteUserKeyTx(user *models.User, id uuid.UUID, tx pgx.Tx) error {
+	_, err := tx.Exec(context.TODO(), "delete from ssh_keys where user_id = $1 and id = $2", user.ID, id)
+	return err
 }

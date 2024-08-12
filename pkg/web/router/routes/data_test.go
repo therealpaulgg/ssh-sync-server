@@ -258,3 +258,10 @@ func TestAddDataError(t *testing.T) {
 			status, http.StatusOK)
 	}
 }
+
+func TestDeleteKe(t *testing.T) {
+	// Arrange
+
+	// Act
+	// Assert
+}

@@ -2,9 +2,11 @@ package query
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog/log"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database"
 )
 
@@ -62,4 +64,24 @@ func (q *QueryServiceTxImpl[T]) QueryOne(tx pgx.Tx, query string, args ...interf
 func (q *QueryServiceTxImpl[T]) Insert(tx pgx.Tx, query string, args ...interface{}) error {
 	_, err := tx.Exec(context.Background(), query, args...)
 	return err
+}
+
+func RollbackFunc(txQueryService TransactionService, tx pgx.Tx, w http.ResponseWriter) {
+	var err error
+	rb := func(tx pgx.Tx) {
+		err := txQueryService.Rollback(tx)
+		if err != nil {
+			log.Err(err).Msg("error rolling back transaction")
+		}
+	}
+	if err != nil {
+		rb(tx)
+	} else {
+		internalErr := txQueryService.Commit(tx)
+		if internalErr != nil {
+			log.Err(err).Msg("error committing transaction")
+			rb(tx)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}
 }
