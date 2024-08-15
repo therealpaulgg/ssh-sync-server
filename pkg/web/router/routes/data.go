@@ -167,7 +167,7 @@ func deleteData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		userRepo := do.MustInvoke[repository.UserRepo](i)
+		userRepo := do.MustInvoke[repository.UserRepository](i)
 		key, err := userRepo.GetUserKey(user.ID, keyId)
 		if err != nil {
 			log.Err(err).Msg("could not get key")

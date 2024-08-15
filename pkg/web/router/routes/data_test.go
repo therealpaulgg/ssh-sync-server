@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-chi/chi"
 	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/samber/do"
@@ -263,17 +264,21 @@ func TestAddDataError(t *testing.T) {
 func TestDeleteKey(t *testing.T) {
 	// Arrange
 	keyId := uuid.New()
-	req := httptest.NewRequest("DELETE", fmt.Sprintf("/key/%s", keyId.String()), nil)
+	req := httptest.NewRequest("DELETE", fmt.Sprintf("/%s", keyId.String()), nil)
 	user := testutils.GenerateUser()
 	req = testutils.AddUserContext(req, user)
+	key := &models.SshKey{
+		ID:     keyId,
+		UserID: user.ID,
+	}
 
 	injector := do.New()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockUserRepo := repository.NewMockUserRepository(ctrl)
 	txMock := pgx.NewMockTx(ctrl)
-	mockUserRepo.EXPECT().GetUserKey(user.ID, keyId.String()).Return(nil)
-	mockUserRepo.EXPECT().DeleteUserKeyTx(gomock.Any(), keyId.String(), txMock).Return(nil, nil)
+	mockUserRepo.EXPECT().GetUserKey(user.ID, keyId).Return(key, nil)
+	mockUserRepo.EXPECT().DeleteUserKeyTx(gomock.Any(), keyId, txMock).Return(nil)
 	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
 		return mockUserRepo, nil
 	})
@@ -285,7 +290,8 @@ func TestDeleteKey(t *testing.T) {
 	})
 	// Act
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(addData(injector))
+	handler := chi.NewRouter()
+	handler.Delete("/{id}", deleteData(injector))
 	handler.ServeHTTP(rr, req)
 	// Assert
 	if status := rr.Code; status != http.StatusOK {
