@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -259,9 +260,36 @@ func TestAddDataError(t *testing.T) {
 	}
 }
 
-func TestDeleteKe(t *testing.T) {
+func TestDeleteKey(t *testing.T) {
 	// Arrange
+	keyId := uuid.New()
+	req := httptest.NewRequest("DELETE", fmt.Sprintf("/key/%s", keyId.String()), nil)
+	user := testutils.GenerateUser()
+	req = testutils.AddUserContext(req, user)
 
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	txMock := pgx.NewMockTx(ctrl)
+	mockUserRepo.EXPECT().GetUserKey(user.ID, keyId.String()).Return(nil)
+	mockUserRepo.EXPECT().DeleteUserKeyTx(gomock.Any(), keyId.String(), txMock).Return(nil, nil)
+	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
+	})
+	mockTransactionService := query.NewMockTransactionService(ctrl)
+	mockTransactionService.EXPECT().StartTx(gomock.Any()).Return(txMock, nil)
+	mockTransactionService.EXPECT().Commit(txMock).Return(nil)
+	do.Provide(injector, func(i *do.Injector) (query.TransactionService, error) {
+		return mockTransactionService, nil
+	})
 	// Act
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(addData(injector))
+	handler.ServeHTTP(rr, req)
 	// Assert
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("addData returned wrong status code: got %v want %v",
+			status, http.StatusOK)
+	}
 }
