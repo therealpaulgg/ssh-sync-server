@@ -73,7 +73,7 @@ func RollbackFunc(txQueryService TransactionService, tx pgx.Tx, w http.ResponseW
 			log.Err(err).Msg("error rolling back transaction")
 		}
 	}
-	if err != nil {
+	if *err != nil {
 		rb(tx)
 	} else {
 		internalErr := txQueryService.Commit(tx)

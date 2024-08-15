@@ -340,5 +340,4 @@ func TestDeleteKeyError(t *testing.T) {
 		t.Errorf("deleteData returned wrong status code: got %v want %v",
 			status, http.StatusInternalServerError)
 	}
-
 }
