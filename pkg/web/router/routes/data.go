@@ -116,7 +116,24 @@ func addData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		defer query.RollbackFunc(txQueryService, tx, w)
+		defer func() {
+			rb := func(tx pgx.Tx) {
+				err := txQueryService.Rollback(tx)
+				if err != nil {
+					log.Err(err).Msg("error rolling back transaction")
+				}
+			}
+			if err != nil {
+				rb(tx)
+			} else {
+				internalErr := txQueryService.Commit(tx)
+				if internalErr != nil {
+					log.Err(internalErr).Msg("error committing transaction")
+					rb(tx)
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+			}
+		}()
 		if err = userRepo.AddAndUpdateConfigTx(user, tx); err != nil {
 			log.Err(err).Msg("could not add config")
 			w.WriteHeader(http.StatusInternalServerError)
@@ -181,6 +198,24 @@ func deleteData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		defer func() {
+			rb := func(tx pgx.Tx) {
+				err := txQueryService.Rollback(tx)
+				if err != nil {
+					log.Err(err).Msg("error rolling back transaction")
+				}
+			}
+			if err != nil {
+				rb(tx)
+			} else {
+				internalErr := txQueryService.Commit(tx)
+				if internalErr != nil {
+					log.Err(internalErr).Msg("error committing transaction")
+					rb(tx)
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+			}
+		}()
 		if err = userRepo.DeleteUserKeyTx(user, key.ID, tx); err != nil {
 			log.Err(err).Msg("could not delete key")
 			w.WriteHeader(http.StatusInternalServerError)

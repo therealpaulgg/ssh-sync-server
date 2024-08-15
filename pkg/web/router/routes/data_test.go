@@ -295,7 +295,50 @@ func TestDeleteKey(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 	// Assert
 	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("addData returned wrong status code: got %v want %v",
+		t.Errorf("deleteData returned wrong status code: got %v want %v",
 			status, http.StatusOK)
 	}
+}
+
+func TestDeleteKeyError(t *testing.T) {
+	// Arrange
+	keyId := uuid.New()
+	req := httptest.NewRequest("DELETE", fmt.Sprintf("/%s", keyId.String()), nil)
+	user := testutils.GenerateUser()
+	req = testutils.AddUserContext(req, user)
+	key := &models.SshKey{
+		ID:     keyId,
+		UserID: user.ID,
+	}
+
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	txMock := pgx.NewMockTx(ctrl)
+	mockUserRepo.EXPECT().GetUserKey(user.ID, keyId).Return(key, nil)
+	mockUserRepo.EXPECT().DeleteUserKeyTx(gomock.Any(), keyId, txMock).Return(errors.New("error"))
+	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
+	})
+	mockTransactionService := query.NewMockTransactionService(ctrl)
+	mockTransactionService.EXPECT().StartTx(gomock.Any()).Return(txMock, nil)
+	mockTransactionService.EXPECT().Rollback(txMock).Return(nil)
+	do.Provide(injector, func(i *do.Injector) (query.TransactionService, error) {
+		return mockTransactionService, nil
+	})
+
+	// Act
+	rr := httptest.NewRecorder()
+	handler := chi.NewRouter()
+	handler.Delete("/{id}", deleteData(injector))
+	handler.ServeHTTP(rr, req)
+
+	// Assert
+
+	if status := rr.Code; status != http.StatusInternalServerError {
+		t.Errorf("deleteData returned wrong status code: got %v want %v",
+			status, http.StatusInternalServerError)
+	}
+
 }

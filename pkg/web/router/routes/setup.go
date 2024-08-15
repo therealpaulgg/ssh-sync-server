@@ -67,7 +67,24 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		defer query.RollbackFunc(txQueryService, tx, w)
+		defer func() {
+			rb := func(tx pgx.Tx) {
+				err := txQueryService.Rollback(tx)
+				if err != nil {
+					log.Err(err).Msg("error rolling back transaction")
+				}
+			}
+			if err != nil {
+				rb(tx)
+			} else {
+				internalErr := txQueryService.Commit(tx)
+				if internalErr != nil {
+					log.Err(internalErr).Msg("error committing transaction")
+					rb(tx)
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+			}
+		}()
 		userRepo := do.MustInvoke[repository.UserRepository](i)
 		user := &models.User{}
 		user.Username = userDto.Username

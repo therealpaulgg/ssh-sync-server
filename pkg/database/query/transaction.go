@@ -66,8 +66,7 @@ func (q *QueryServiceTxImpl[T]) Insert(tx pgx.Tx, query string, args ...interfac
 	return err
 }
 
-func RollbackFunc(txQueryService TransactionService, tx pgx.Tx, w http.ResponseWriter) {
-	var err error
+func RollbackFunc(txQueryService TransactionService, tx pgx.Tx, w http.ResponseWriter, err *error) {
 	rb := func(tx pgx.Tx) {
 		err := txQueryService.Rollback(tx)
 		if err != nil {
@@ -79,7 +78,7 @@ func RollbackFunc(txQueryService TransactionService, tx pgx.Tx, w http.ResponseW
 	} else {
 		internalErr := txQueryService.Commit(tx)
 		if internalErr != nil {
-			log.Err(err).Msg("error committing transaction")
+			log.Err(internalErr).Msg("error committing transaction")
 			rb(tx)
 			w.WriteHeader(http.StatusInternalServerError)
 		}
