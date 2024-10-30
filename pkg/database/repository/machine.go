@@ -45,8 +45,7 @@ func (repo *MachineRepo) DeleteMachine(id uuid.UUID) error {
 	if _, err := tx.Exec(context.TODO(), "delete from machines where id = $1", id); err != nil {
 		return err
 	}
-	err = tx.Commit(context.TODO())
-	return err
+	return tx.Commit(context.TODO())
 }
 
 func (repo *MachineRepo) GetMachine(id uuid.UUID) (*models.Machine, error) {

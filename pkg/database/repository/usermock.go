@@ -136,6 +136,20 @@ func (mr *MockUserRepositoryMockRecorder) DeleteUser(id interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUser", reflect.TypeOf((*MockUserRepository)(nil).DeleteUser), id)
 }
 
+// DeleteUserKeyTx mocks base method.
+func (m *MockUserRepository) DeleteUserKeyTx(user *models.User, id uuid.UUID, tx pgx.Tx) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUserKeyTx", user, id, tx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteUserKeyTx indicates an expected call of DeleteUserKeyTx.
+func (mr *MockUserRepositoryMockRecorder) DeleteUserKeyTx(user, id, tx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserKeyTx", reflect.TypeOf((*MockUserRepository)(nil).DeleteUserKeyTx), user, id, tx)
+}
+
 // GetUser mocks base method.
 func (m *MockUserRepository) GetUser(id uuid.UUID) (*models.User, error) {
 	m.ctrl.T.Helper()
@@ -179,6 +193,21 @@ func (m *MockUserRepository) GetUserConfig(id uuid.UUID) ([]models.SshConfig, er
 func (mr *MockUserRepositoryMockRecorder) GetUserConfig(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserConfig", reflect.TypeOf((*MockUserRepository)(nil).GetUserConfig), id)
+}
+
+// GetUserKey mocks base method.
+func (m *MockUserRepository) GetUserKey(userId, keyId uuid.UUID) (*models.SshKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserKey", userId, keyId)
+	ret0, _ := ret[0].(*models.SshKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserKey indicates an expected call of GetUserKey.
+func (mr *MockUserRepositoryMockRecorder) GetUserKey(userId, keyId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserKey", reflect.TypeOf((*MockUserRepository)(nil).GetUserKey), userId, keyId)
 }
 
 // GetUserKeys mocks base method.
