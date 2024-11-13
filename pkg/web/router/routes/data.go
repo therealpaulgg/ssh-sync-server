@@ -73,12 +73,6 @@ func addData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		machine, ok := r.Context().Value(context_keys.MachineContextKey).(*models.Machine)
-		if !ok {
-			log.Err(errors.New("could not get machine from context"))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
 		userRepo := do.MustInvoke[repository.UserRepository](i)
 		err := r.ParseMultipartForm(32 << 20)
 		if err != nil {
@@ -102,7 +96,6 @@ func addData(i *do.Injector) http.HandlerFunc {
 		sshConfigData := lo.Map(sshConfig, func(conf dto.SshConfigDto, i int) models.SshConfig {
 			return models.SshConfig{
 				UserID:        user.ID,
-				MachineID:     machine.ID,
 				Host:          conf.Host,
 				Values:        conf.Values,
 				IdentityFiles: conf.IdentityFiles,
