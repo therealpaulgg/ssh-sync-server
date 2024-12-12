@@ -1,6 +1,6 @@
 module github.com/therealpaulgg/ssh-sync-server
 
-go 1.19
+go 1.23
 
 require (
 	github.com/go-chi/chi v1.5.4
