@@ -1,6 +1,7 @@
 module github.com/therealpaulgg/ssh-sync-server
 
-go 1.23
+go 1.23.0
+
 toolchain go1.24.1
 
 require (
@@ -29,11 +30,11 @@ require (
 	github.com/lestrrat-go/jwx/v2 v2.0.21
 	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
-	github.com/mattn/go-isatty v0.0.14 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/samber/do v1.5.1
 	github.com/samber/lo v1.37.0
 	github.com/sethvargo/go-diceware v0.3.0
-	github.com/therealpaulgg/ssh-sync v0.3.0
+	github.com/therealpaulgg/ssh-sync v1.1.2
 	golang.org/x/crypto v0.35.0 // indirect
 	golang.org/x/exp v0.0.0-20230111222715-75897c7a292a // indirect
 	golang.org/x/sync v0.11.0 // indirect
