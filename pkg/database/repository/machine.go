@@ -39,9 +39,6 @@ func (repo *MachineRepo) DeleteMachine(id uuid.UUID) error {
 			tx.Rollback(context.TODO())
 		}
 	}()
-	if _, err := tx.Exec(context.TODO(), "delete from ssh_configs where machine_id = $1", id); err != nil {
-		return err
-	}
 	if _, err := tx.Exec(context.TODO(), "delete from machines where id = $1", id); err != nil {
 		return err
 	}
