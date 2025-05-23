@@ -30,7 +30,7 @@ var ErrMachineAlreadyExists = errors.New("machine w/ user already exists")
 
 func (repo *MachineRepo) DeleteMachine(id uuid.UUID) error {
 	q := do.MustInvoke[database.DataAccessor](repo.Injector)
-	tx, err := beginTxFunc(context.TODO(), q.GetConnection(), pgx.TxOptions{})
+	tx, err := q.GetConnection().BeginTx(context.TODO(), pgx.TxOptions{})
 	if err != nil {
 		return err
 	}
