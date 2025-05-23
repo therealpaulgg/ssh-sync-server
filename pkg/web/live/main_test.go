@@ -348,14 +348,4 @@ func TestChallengeCleanup(t *testing.T) {
 	}
 }
 
-// Note: Full WebSocket tests would require more complex setup with mocks.
-// These tests focus on the core mechanisms of the package - the challenge
-// response system, dictionary operations, and channel communication.
-// 
-// For comprehensive WebSocket testing, we would need:
-// 1. Mock HTTP server with WebSocket upgrades
-// 2. Mock connection objects that simulate WebSocket communication
-// 3. Mocking of dependencies like repositories
-//
-// The tests above provide good coverage of the critical functionality
-// without the complexity of full WebSocket simulation.
+
