@@ -72,7 +72,7 @@ func TestGetSshConfig(t *testing.T) {
 							return &models.SshConfig{
 								UserID: uuid.New(),
 								Host:   "test-host",
-								Values: []byte(`{"key": "value"}`),
+								Values: map[string][]string{"key": {"value"}},
 							}, nil
 						},
 					}
@@ -166,7 +166,7 @@ func TestUpsertSshConfig(t *testing.T) {
 							return &models.SshConfig{
 								UserID: uuid.New(),
 								Host:   "test-host",
-								Values: []byte(`{"key": "value"}`),
+								Values: map[string][]string{"key": {"value"}},
 							}, nil
 						},
 					}
@@ -218,8 +218,8 @@ func TestUpsertSshConfig(t *testing.T) {
 			config := &models.SshConfig{
 				UserID:        uuid.New(),
 				Host:          "test-host",
-				Values:        []byte(`{"key": "value"}`),
-				IdentityFiles: []byte(`["id_rsa"]`),
+				Values:        map[string][]string{"key": {"value"}},
+				IdentityFiles: []string{"id_rsa"},
 			}
 			result, err := repo.UpsertSshConfig(config)
 
@@ -269,7 +269,7 @@ func TestUpsertSshConfigTx(t *testing.T) {
 							return &models.SshConfig{
 								UserID: uuid.New(),
 								Host:   "test-host",
-								Values: []byte(`{"key": "value"}`),
+								Values: map[string][]string{"key": {"value"}},
 							}, nil
 						},
 					}
@@ -321,8 +321,8 @@ func TestUpsertSshConfigTx(t *testing.T) {
 			config := &models.SshConfig{
 				UserID:        uuid.New(),
 				Host:          "test-host",
-				Values:        []byte(`{"key": "value"}`),
-				IdentityFiles: []byte(`["id_rsa"]`),
+				Values:        map[string][]string{"key": {"value"}},
+				IdentityFiles: []string{"id_rsa"},
 			}
 			result, err := repo.UpsertSshConfigTx(config, mockTx)
 

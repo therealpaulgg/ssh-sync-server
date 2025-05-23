@@ -76,7 +76,7 @@ func TestGetData(t *testing.T) {
 	assert.Equal(t, 0, len(dataDto.SshConfig))
 }
 
-func TestGetDataError(t *testing.T) {
+func TestGetDataErrorOnGetUserKeys(t *testing.T) {
 	// Arrange
 	req, err := http.NewRequest("GET", "/", nil)
 	if err != nil {
@@ -100,9 +100,63 @@ func TestGetDataError(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	// Assert
-
 	if status := rr.Code; status != http.StatusInternalServerError {
 		t.Errorf("getData returned wrong status code: got %v want %v",
+			status, http.StatusInternalServerError)
+	}
+}
+
+func TestGetDataErrorOnGetUserConfig(t *testing.T) {
+	// Arrange
+	req, err := http.NewRequest("GET", "/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := testutils.GenerateUser()
+	req = testutils.AddUserContext(req, user)
+
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	mockUserRepo.EXPECT().GetUserKeys(user.ID).Return([]models.SshKey{}, nil)
+	mockUserRepo.EXPECT().GetUserConfig(user.ID).Return(nil, errors.New("config error"))
+	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
+	})
+
+	// Act
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(getData(injector))
+	handler.ServeHTTP(rr, req)
+
+	// Assert
+	if status := rr.Code; status != http.StatusInternalServerError {
+		t.Errorf("getData returned wrong status code: got %v want %v",
+			status, http.StatusInternalServerError)
+	}
+}
+
+func TestGetDataNoUserContext(t *testing.T) {
+	// Arrange
+	req, err := http.NewRequest("GET", "/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// No user context added
+
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Act
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(getData(injector))
+	handler.ServeHTTP(rr, req)
+
+	// Assert
+	if status := rr.Code; status != http.StatusInternalServerError {
+		t.Errorf("getData with no user context returned wrong status code: got %v want %v",
 			status, http.StatusInternalServerError)
 	}
 }
@@ -168,21 +222,18 @@ func TestAddData(t *testing.T) {
 	}
 }
 
-func TestAddDataBadRequest(t *testing.T) {
+func TestAddDataNoUserContext(t *testing.T) {
 	// Arrange
-	// POST random bytes
 	body := &bytes.Buffer{}
-	_, _ = rand.Read(body.Bytes())
 	req, err := http.NewRequest("POST", "/", body)
 	if err != nil {
 		t.Fatal(err)
 	}
-	user := testutils.GenerateUser()
-	machine := testutils.GenerateMachine()
-	req = testutils.AddUserContext(req, user)
-	req = testutils.AddMachineContext(req, machine)
+	// No user context
+
 	injector := do.New()
 	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 	mockUserRepo := repository.NewMockUserRepository(ctrl)
 	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
 		return mockUserRepo, nil
@@ -192,10 +243,121 @@ func TestAddDataBadRequest(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(addData(injector))
 	handler.ServeHTTP(rr, req)
-	// Assert
 
+	// Assert
+	if status := rr.Code; status != http.StatusInternalServerError {
+		t.Errorf("addData with no user context returned wrong status code: got %v want %v",
+			status, http.StatusInternalServerError)
+	}
+}
+
+func TestAddDataInvalidSshConfig(t *testing.T) {
+	// Arrange
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	// Create invalid SSH config
+	_ = writer.WriteField("ssh_config", `{"invalid": "json"`) // Invalid JSON
+	writer.Close()
+
+	req, err := http.NewRequest("POST", "/", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := testutils.GenerateUser()
+	req = testutils.AddUserContext(req, user)
+
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
+	})
+
+	// Act
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(addData(injector))
+	handler.ServeHTTP(rr, req)
+
+	// Assert
 	if status := rr.Code; status != http.StatusBadRequest {
-		t.Errorf("addData returned wrong status code: got %v want %v",
+		t.Errorf("addData with invalid SSH config returned wrong status code: got %v want %v",
+			status, http.StatusBadRequest)
+	}
+}
+
+func TestAddDataStartTxError(t *testing.T) {
+	// Arrange
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	_ = writer.WriteField("ssh_config", `[{"host":"test"}]`)
+	writer.Close()
+
+	req, err := http.NewRequest("POST", "/", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := testutils.GenerateUser()
+	req = testutils.AddUserContext(req, user)
+
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
+	})
+	mockTransactionService := query.NewMockTransactionService(ctrl)
+	mockTransactionService.EXPECT().StartTx(gomock.Any()).Return(nil, errors.New("tx error"))
+	do.Provide(injector, func(i *do.Injector) (query.TransactionService, error) {
+		return mockTransactionService, nil
+	})
+
+	// Act
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(addData(injector))
+	handler.ServeHTTP(rr, req)
+
+	// Assert
+	if status := rr.Code; status != http.StatusInternalServerError {
+		t.Errorf("addData with transaction error returned wrong status code: got %v want %v",
+			status, http.StatusInternalServerError)
+	}
+}
+
+func TestAddDataEmptySshConfig(t *testing.T) {
+	// Arrange
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	// Empty SSH config
+	writer.Close()
+
+	req, err := http.NewRequest("POST", "/", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := testutils.GenerateUser()
+	req = testutils.AddUserContext(req, user)
+
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
+	})
+
+	// Act
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(addData(injector))
+	handler.ServeHTTP(rr, req)
+
+	// Assert
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf("addData with empty SSH config returned wrong status code: got %v want %v",
 			status, http.StatusBadRequest)
 	}
 }
@@ -300,7 +462,82 @@ func TestDeleteKey(t *testing.T) {
 	}
 }
 
-func TestDeleteKeyError(t *testing.T) {
+func TestDeleteKeyNoUserContext(t *testing.T) {
+	// Arrange
+	keyId := uuid.New()
+	req := httptest.NewRequest("DELETE", fmt.Sprintf("/%s", keyId.String()), nil)
+	// No user context
+
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Act
+	rr := httptest.NewRecorder()
+	handler := chi.NewRouter()
+	handler.Delete("/{id}", deleteData(injector))
+	handler.ServeHTTP(rr, req)
+
+	// Assert
+	if status := rr.Code; status != http.StatusInternalServerError {
+		t.Errorf("deleteData with no user context returned wrong status code: got %v want %v",
+			status, http.StatusInternalServerError)
+	}
+}
+
+func TestDeleteKeyInvalidUUID(t *testing.T) {
+	// Arrange
+	req := httptest.NewRequest("DELETE", "/invalid-uuid", nil)
+	user := testutils.GenerateUser()
+	req = testutils.AddUserContext(req, user)
+
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Act
+	rr := httptest.NewRecorder()
+	handler := chi.NewRouter()
+	handler.Delete("/{id}", deleteData(injector))
+	handler.ServeHTTP(rr, req)
+
+	// Assert
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf("deleteData with invalid UUID returned wrong status code: got %v want %v",
+			status, http.StatusBadRequest)
+	}
+}
+
+func TestDeleteKeyKeyNotFound(t *testing.T) {
+	// Arrange
+	keyId := uuid.New()
+	req := httptest.NewRequest("DELETE", fmt.Sprintf("/%s", keyId.String()), nil)
+	user := testutils.GenerateUser()
+	req = testutils.AddUserContext(req, user)
+
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	mockUserRepo.EXPECT().GetUserKey(user.ID, keyId).Return(nil, errors.New("key not found"))
+	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
+	})
+
+	// Act
+	rr := httptest.NewRecorder()
+	handler := chi.NewRouter()
+	handler.Delete("/{id}", deleteData(injector))
+	handler.ServeHTTP(rr, req)
+
+	// Assert
+	if status := rr.Code; status != http.StatusNotFound {
+		t.Errorf("deleteData with key not found returned wrong status code: got %v want %v",
+			status, http.StatusNotFound)
+	}
+}
+
+func TestDeleteKeyTxStartError(t *testing.T) {
 	// Arrange
 	keyId := uuid.New()
 	req := httptest.NewRequest("DELETE", fmt.Sprintf("/%s", keyId.String()), nil)
@@ -315,15 +552,12 @@ func TestDeleteKeyError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockUserRepo := repository.NewMockUserRepository(ctrl)
-	txMock := pgx.NewMockTx(ctrl)
 	mockUserRepo.EXPECT().GetUserKey(user.ID, keyId).Return(key, nil)
-	mockUserRepo.EXPECT().DeleteUserKeyTx(gomock.Any(), keyId, txMock).Return(errors.New("error"))
 	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
 		return mockUserRepo, nil
 	})
 	mockTransactionService := query.NewMockTransactionService(ctrl)
-	mockTransactionService.EXPECT().StartTx(gomock.Any()).Return(txMock, nil)
-	mockTransactionService.EXPECT().Rollback(txMock).Return(nil)
+	mockTransactionService.EXPECT().StartTx(gomock.Any()).Return(nil, errors.New("tx start error"))
 	do.Provide(injector, func(i *do.Injector) (query.TransactionService, error) {
 		return mockTransactionService, nil
 	})
@@ -335,9 +569,8 @@ func TestDeleteKeyError(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	// Assert
-
 	if status := rr.Code; status != http.StatusInternalServerError {
-		t.Errorf("deleteData returned wrong status code: got %v want %v",
+		t.Errorf("deleteData with tx start error returned wrong status code: got %v want %v",
 			status, http.StatusInternalServerError)
 	}
 }
