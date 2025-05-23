@@ -7,7 +7,6 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/samber/do"
 	"github.com/stretchr/testify/assert"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
@@ -15,42 +14,11 @@ import (
 	testpgx "github.com/therealpaulgg/ssh-sync-server/test/pgx"
 )
 
-// Create a mock QueryService
-type mockQueryService struct {
-	mockQueryOne func(query string, args ...interface{}) (*models.SshConfig, error)
-}
-
-func (m *mockQueryService) Query(query string, args ...interface{}) ([]models.SshConfig, error) {
-	return nil, nil
-}
-
-func (m *mockQueryService) QueryOne(query string, args ...interface{}) (*models.SshConfig, error) {
-	return m.mockQueryOne(query, args...)
-}
-
-func (m *mockQueryService) Insert(query string, args ...interface{}) error {
-	return nil
-}
-
-// Create a mock QueryServiceTx
-type mockQueryServiceTx struct {
-	mockQueryOne func(tx pgx.Tx, query string, args ...interface{}) (*models.SshConfig, error)
-}
-
-func (m *mockQueryServiceTx) Query(tx pgx.Tx, query string, args ...interface{}) ([]models.SshConfig, error) {
-	return nil, nil
-}
-
-func (m *mockQueryServiceTx) QueryOne(tx pgx.Tx, query string, args ...interface{}) (*models.SshConfig, error) {
-	return m.mockQueryOne(tx, query, args...)
-}
-
-func (m *mockQueryServiceTx) Insert(tx pgx.Tx, query string, args ...interface{}) error {
-	return nil
-}
-
 func TestGetSshConfig(t *testing.T) {
 	// Setup
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	
 	injector := do.New()
 	repo := &SshConfigRepo{
 		Injector: injector,
@@ -59,23 +27,23 @@ func TestGetSshConfig(t *testing.T) {
 	// Test cases
 	tests := []struct {
 		name          string
-		setupMock     func()
+		setupMock     func(*gomock.Controller)
 		expectedError error
 		expectedNil   bool
 	}{
 		{
 			name: "successful query",
-			setupMock: func() {
+			setupMock: func(ctrl *gomock.Controller) {
+				mockService := query.NewMockQueryService[models.SshConfig](ctrl)
+				mockService.EXPECT().
+					QueryOne(gomock.Any(), gomock.Any()).
+					Return(&models.SshConfig{
+						UserID: uuid.New(),
+						Host:   "test-host",
+						Values: map[string][]string{"key": {"value"}},
+					}, nil)
+				
 				do.Override(injector, func(i *do.Injector) (query.QueryService[models.SshConfig], error) {
-					mockService := &mockQueryService{
-						mockQueryOne: func(query string, args ...interface{}) (*models.SshConfig, error) {
-							return &models.SshConfig{
-								UserID: uuid.New(),
-								Host:   "test-host",
-								Values: map[string][]string{"key": {"value"}},
-							}, nil
-						},
-					}
 					return mockService, nil
 				})
 			},
@@ -84,13 +52,13 @@ func TestGetSshConfig(t *testing.T) {
 		},
 		{
 			name: "no rows found",
-			setupMock: func() {
+			setupMock: func(ctrl *gomock.Controller) {
+				mockService := query.NewMockQueryService[models.SshConfig](ctrl)
+				mockService.EXPECT().
+					QueryOne(gomock.Any(), gomock.Any()).
+					Return(nil, nil)
+				
 				do.Override(injector, func(i *do.Injector) (query.QueryService[models.SshConfig], error) {
-					mockService := &mockQueryService{
-						mockQueryOne: func(query string, args ...interface{}) (*models.SshConfig, error) {
-							return nil, nil
-						},
-					}
 					return mockService, nil
 				})
 			},
@@ -99,13 +67,13 @@ func TestGetSshConfig(t *testing.T) {
 		},
 		{
 			name: "database error",
-			setupMock: func() {
+			setupMock: func(ctrl *gomock.Controller) {
+				mockService := query.NewMockQueryService[models.SshConfig](ctrl)
+				mockService.EXPECT().
+					QueryOne(gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("database error"))
+				
 				do.Override(injector, func(i *do.Injector) (query.QueryService[models.SshConfig], error) {
-					mockService := &mockQueryService{
-						mockQueryOne: func(query string, args ...interface{}) (*models.SshConfig, error) {
-							return nil, errors.New("database error")
-						},
-					}
 					return mockService, nil
 				})
 			},
@@ -118,7 +86,7 @@ func TestGetSshConfig(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup mock
-			tc.setupMock()
+			tc.setupMock(ctrl)
 
 			// Run test
 			result, err := repo.GetSshConfig(uuid.New())
@@ -145,6 +113,9 @@ func TestGetSshConfig(t *testing.T) {
 
 func TestUpsertSshConfig(t *testing.T) {
 	// Setup
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	
 	injector := do.New()
 	repo := &SshConfigRepo{
 		Injector: injector,
@@ -153,23 +124,23 @@ func TestUpsertSshConfig(t *testing.T) {
 	// Test cases
 	tests := []struct {
 		name          string
-		setupMock     func()
+		setupMock     func(*gomock.Controller)
 		expectedError error
 		expectedNil   bool
 	}{
 		{
 			name: "successful upsert",
-			setupMock: func() {
+			setupMock: func(ctrl *gomock.Controller) {
+				mockService := query.NewMockQueryService[models.SshConfig](ctrl)
+				mockService.EXPECT().
+					QueryOne(gomock.Any(), gomock.Any()).
+					Return(&models.SshConfig{
+						UserID: uuid.New(),
+						Host:   "test-host",
+						Values: map[string][]string{"key": {"value"}},
+					}, nil)
+				
 				do.Override(injector, func(i *do.Injector) (query.QueryService[models.SshConfig], error) {
-					mockService := &mockQueryService{
-						mockQueryOne: func(query string, args ...interface{}) (*models.SshConfig, error) {
-							return &models.SshConfig{
-								UserID: uuid.New(),
-								Host:   "test-host",
-								Values: map[string][]string{"key": {"value"}},
-							}, nil
-						},
-					}
 					return mockService, nil
 				})
 			},
@@ -178,13 +149,13 @@ func TestUpsertSshConfig(t *testing.T) {
 		},
 		{
 			name: "no rows returned",
-			setupMock: func() {
+			setupMock: func(ctrl *gomock.Controller) {
+				mockService := query.NewMockQueryService[models.SshConfig](ctrl)
+				mockService.EXPECT().
+					QueryOne(gomock.Any(), gomock.Any()).
+					Return(nil, nil)
+				
 				do.Override(injector, func(i *do.Injector) (query.QueryService[models.SshConfig], error) {
-					mockService := &mockQueryService{
-						mockQueryOne: func(query string, args ...interface{}) (*models.SshConfig, error) {
-							return nil, nil
-						},
-					}
 					return mockService, nil
 				})
 			},
@@ -193,13 +164,13 @@ func TestUpsertSshConfig(t *testing.T) {
 		},
 		{
 			name: "database error",
-			setupMock: func() {
+			setupMock: func(ctrl *gomock.Controller) {
+				mockService := query.NewMockQueryService[models.SshConfig](ctrl)
+				mockService.EXPECT().
+					QueryOne(gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("database error"))
+				
 				do.Override(injector, func(i *do.Injector) (query.QueryService[models.SshConfig], error) {
-					mockService := &mockQueryService{
-						mockQueryOne: func(query string, args ...interface{}) (*models.SshConfig, error) {
-							return nil, errors.New("database error")
-						},
-					}
 					return mockService, nil
 				})
 			},
@@ -212,7 +183,7 @@ func TestUpsertSshConfig(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup mock
-			tc.setupMock()
+			tc.setupMock(ctrl)
 
 			// Run test
 			config := &models.SshConfig{
@@ -245,34 +216,35 @@ func TestUpsertSshConfig(t *testing.T) {
 
 func TestUpsertSshConfigTx(t *testing.T) {
 	// Setup
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	
 	injector := do.New()
 	repo := &SshConfigRepo{
 		Injector: injector,
 	}
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 	mockTx := testpgx.NewMockTx(ctrl)
 
 	// Test cases
 	tests := []struct {
 		name          string
-		setupMock     func()
+		setupMock     func(*gomock.Controller)
 		expectedError error
 		expectedNil   bool
 	}{
 		{
 			name: "successful upsert with transaction",
-			setupMock: func() {
+			setupMock: func(ctrl *gomock.Controller) {
+				mockService := query.NewMockQueryServiceTx[models.SshConfig](ctrl)
+				mockService.EXPECT().
+					QueryOne(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&models.SshConfig{
+						UserID: uuid.New(),
+						Host:   "test-host",
+						Values: map[string][]string{"key": {"value"}},
+					}, nil)
+				
 				do.Override(injector, func(i *do.Injector) (query.QueryServiceTx[models.SshConfig], error) {
-					mockService := &mockQueryServiceTx{
-						mockQueryOne: func(tx pgx.Tx, query string, args ...interface{}) (*models.SshConfig, error) {
-							return &models.SshConfig{
-								UserID: uuid.New(),
-								Host:   "test-host",
-								Values: map[string][]string{"key": {"value"}},
-							}, nil
-						},
-					}
 					return mockService, nil
 				})
 			},
@@ -281,13 +253,13 @@ func TestUpsertSshConfigTx(t *testing.T) {
 		},
 		{
 			name: "no rows returned with transaction",
-			setupMock: func() {
+			setupMock: func(ctrl *gomock.Controller) {
+				mockService := query.NewMockQueryServiceTx[models.SshConfig](ctrl)
+				mockService.EXPECT().
+					QueryOne(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, nil)
+				
 				do.Override(injector, func(i *do.Injector) (query.QueryServiceTx[models.SshConfig], error) {
-					mockService := &mockQueryServiceTx{
-						mockQueryOne: func(tx pgx.Tx, query string, args ...interface{}) (*models.SshConfig, error) {
-							return nil, nil
-						},
-					}
 					return mockService, nil
 				})
 			},
@@ -296,13 +268,13 @@ func TestUpsertSshConfigTx(t *testing.T) {
 		},
 		{
 			name: "database error with transaction",
-			setupMock: func() {
+			setupMock: func(ctrl *gomock.Controller) {
+				mockService := query.NewMockQueryServiceTx[models.SshConfig](ctrl)
+				mockService.EXPECT().
+					QueryOne(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("database error"))
+				
 				do.Override(injector, func(i *do.Injector) (query.QueryServiceTx[models.SshConfig], error) {
-					mockService := &mockQueryServiceTx{
-						mockQueryOne: func(tx pgx.Tx, query string, args ...interface{}) (*models.SshConfig, error) {
-							return nil, errors.New("database error")
-						},
-					}
 					return mockService, nil
 				})
 			},
@@ -315,7 +287,7 @@ func TestUpsertSshConfigTx(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup mock
-			tc.setupMock()
+			tc.setupMock(ctrl)
 
 			// Run test
 			config := &models.SshConfig{
