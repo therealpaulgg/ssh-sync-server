@@ -46,6 +46,14 @@ func SetupServices(i *do.Injector) {
 		dataAccessor := do.MustInvoke[database.DataAccessor](i)
 		return &query.QueryServiceTxImpl[models.SshConfig]{DataAccessor: dataAccessor}, nil
 	})
+	do.Provide(i, func(i *do.Injector) (query.QueryService[models.SshKeyChange], error) {
+		dataAccessor := do.MustInvoke[database.DataAccessor](i)
+		return &query.QueryServiceImpl[models.SshKeyChange]{DataAccessor: dataAccessor}, nil
+	})
+	do.Provide(i, func(i *do.Injector) (query.QueryServiceTx[models.SshKeyChange], error) {
+		dataAccessor := do.MustInvoke[database.DataAccessor](i)
+		return &query.QueryServiceTxImpl[models.SshKeyChange]{DataAccessor: dataAccessor}, nil
+	})
 	do.Provide(i, func(i *do.Injector) (repository.UserRepository, error) {
 		return &repository.UserRepo{Injector: i}, nil
 	})
@@ -58,5 +66,7 @@ func SetupServices(i *do.Injector) {
 	do.Provide(i, func(i *do.Injector) (repository.SshConfigRepository, error) {
 		return &repository.SshConfigRepo{Injector: i}, nil
 	})
-
+	do.Provide(i, func(i *do.Injector) (repository.SshKeyChangeRepository, error) {
+		return &repository.SshKeyChangeRepo{Injector: i}, nil
+	})
 }
