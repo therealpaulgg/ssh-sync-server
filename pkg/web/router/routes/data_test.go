@@ -63,17 +63,26 @@ func TestGetData(t *testing.T) {
 			status, http.StatusOK)
 	}
 
-	var dataDto dto.DataDto
-	err = json.NewDecoder(rr.Body).Decode(&dataDto)
-	if err != nil {
-		t.Errorf("getData returned unexpected body: got %v want %v, could not decode",
-			rr.Body.String(), err)
+	// Use our custom DataDtoResponse type for decoding the response
+	type DataDtoResponse struct {
+		ID        uuid.UUID           `json:"id"`
+		Username  string              `json:"username"`
+		Keys      []dto.KeyDto        `json:"keys"`
+		SshConfig []ServerSshConfigDto `json:"ssh_config"`
+		Machines  []dto.MachineDto    `json:"machines"`
 	}
 
-	assert.Equal(t, user.ID, dataDto.ID)
-	assert.Equal(t, "test", dataDto.Keys[0].Filename)
-	assert.Equal(t, bytes, dataDto.Keys[0].Data)
-	assert.Equal(t, 0, len(dataDto.SshConfig))
+	var dataResponse DataDtoResponse
+	err = json.NewDecoder(rr.Body).Decode(&dataResponse)
+	if err != nil {
+		t.Errorf("getData returned unexpected body: got %v want %v, could not decode: %v",
+			rr.Body.String(), "valid JSON", err)
+	}
+
+	assert.Equal(t, user.ID, dataResponse.ID)
+	assert.Equal(t, "test", dataResponse.Keys[0].Filename)
+	assert.Equal(t, bytes, dataResponse.Keys[0].Data)
+	assert.Equal(t, 0, len(dataResponse.SshConfig))
 }
 
 func TestGetDataError(t *testing.T) {
@@ -124,7 +133,8 @@ func TestAddData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = writer.WriteField("ssh_config", `[{"host":"test"}]`)
+	// Include known_hosts in test data
+	_ = writer.WriteField("ssh_config", `[{"host":"test", "values":{}, "identity_files":[], "known_hosts":"dGVzdA=="}]`)
 	writer.Close()
 
 	req, err := http.NewRequest("POST", "/", body)
@@ -217,7 +227,8 @@ func TestAddDataError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = writer.WriteField("ssh_config", `[{"host":"test"}]`)
+	// Include known_hosts in test data
+	_ = writer.WriteField("ssh_config", `[{"host":"test", "values":{}, "identity_files":[], "known_hosts":"dGVzdA=="}]`)
 	writer.Close()
 
 	req, err := http.NewRequest("POST", "/", body)

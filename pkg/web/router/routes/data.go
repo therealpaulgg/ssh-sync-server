@@ -21,6 +21,14 @@ import (
 	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
 
+// Custom SshConfigDto to include KnownHosts field which is not yet in the client library
+type ServerSshConfigDto struct {
+	Host          string              `json:"host"`
+	Values        map[string][]string `json:"values"`
+	IdentityFiles []string            `json:"identity_files"`
+	KnownHosts    []byte              `json:"known_hosts"`
+}
+
 func getData(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
@@ -42,7 +50,17 @@ func getData(i *do.Injector) http.HandlerFunc {
 			return
 		}
 		user.Config = config
-		dto := dto.DataDto{
+		// Since we're doing our own custom JSON encoding, we need to create a custom response object
+		// that includes our extended SshConfigDto with KnownHosts field
+		type DataDtoResponse struct {
+			ID       uuid.UUID           `json:"id"`
+			Username string              `json:"username"`
+			Keys     []dto.KeyDto        `json:"keys"`
+			SshConfig []ServerSshConfigDto `json:"ssh_config"`
+			Machines []dto.MachineDto    `json:"machines"`
+		}
+		
+		dataResponse := DataDtoResponse{
 			ID:       user.ID,
 			Username: user.Username,
 			Keys: lo.Map(user.Keys, func(key models.SshKey, index int) dto.KeyDto {
@@ -53,15 +71,16 @@ func getData(i *do.Injector) http.HandlerFunc {
 					Data:     key.Data,
 				}
 			}),
-			SshConfig: lo.Map(user.Config, func(conf models.SshConfig, index int) dto.SshConfigDto {
-				return dto.SshConfigDto{
+			SshConfig: lo.Map(user.Config, func(conf models.SshConfig, index int) ServerSshConfigDto {
+				return ServerSshConfigDto{
 					Host:          conf.Host,
 					Values:        conf.Values,
 					IdentityFiles: conf.IdentityFiles,
+					KnownHosts:    conf.KnownHosts,
 				}
 			}),
 		}
-		json.NewEncoder(w).Encode(dto)
+		json.NewEncoder(w).Encode(dataResponse)
 	}
 }
 
@@ -87,18 +106,19 @@ func addData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		var sshConfig []dto.SshConfigDto
+		var sshConfig []ServerSshConfigDto
 		if err := json.NewDecoder(bytes.NewBufferString(sshConfigDataRaw)).Decode(&sshConfig); err != nil {
 			log.Debug().Err(err).Msg("could not decode ssh config")
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		sshConfigData := lo.Map(sshConfig, func(conf dto.SshConfigDto, i int) models.SshConfig {
+		sshConfigData := lo.Map(sshConfig, func(conf ServerSshConfigDto, i int) models.SshConfig {
 			return models.SshConfig{
 				UserID:        user.ID,
 				Host:          conf.Host,
 				Values:        conf.Values,
 				IdentityFiles: conf.IdentityFiles,
+				KnownHosts:    conf.KnownHosts,
 			}
 		})
 		user.Config = sshConfigData

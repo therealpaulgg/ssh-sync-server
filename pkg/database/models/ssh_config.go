@@ -10,4 +10,5 @@ type SshConfig struct {
 	Host          string              `json:"host" db:"host"`
 	Values        map[string][]string `json:"values" db:"values"`
 	IdentityFiles []string            `json:"identity_files" db:"identity_files"`
+	KnownHosts    []byte              `json:"known_hosts" db:"known_hosts"`
 }
