@@ -30,7 +30,7 @@ var ErrMachineAlreadyExists = errors.New("machine w/ user already exists")
 
 func (repo *MachineRepo) DeleteMachine(id uuid.UUID) error {
 	q := do.MustInvoke[database.DataAccessor](repo.Injector)
-	tx, err := q.GetConnection().BeginTx(context.TODO(), pgx.TxOptions{})
+	tx, err := beginTxFunc(context.TODO(), q.GetConnection(), pgx.TxOptions{})
 	if err != nil {
 		return err
 	}
@@ -39,7 +39,7 @@ func (repo *MachineRepo) DeleteMachine(id uuid.UUID) error {
 			tx.Rollback(context.TODO())
 		}
 	}()
-	if _, err := tx.Exec(context.TODO(), "delete from machines where id = $1", id); err != nil {
+	if _, err = tx.Exec(context.TODO(), "delete from machines where id = $1", id); err != nil {
 		return err
 	}
 	return tx.Commit(context.TODO())
