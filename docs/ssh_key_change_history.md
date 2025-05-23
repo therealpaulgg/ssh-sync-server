@@ -7,6 +7,8 @@ This feature adds support for tracking changes to SSH keys in the database, allo
 The feature introduces a new table `ssh_key_changes` that tracks all changes (creation, updates, and deletions) to SSH keys. 
 See the SQL schema in `docs/sql/ssh_key_changes.sql`.
 
+**Note**: This schema needs to be added to the init.sql file in the separate [ssh-sync-db](https://github.com/therealpaulgg/ssh-sync-db) repository. See `docs/db_repository_update.md` for detailed instructions.
+
 ## API Usage
 
 ### Recording Changes
