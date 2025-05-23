@@ -211,6 +211,34 @@ func (repo *UserRepo) GetUserKey(userId uuid.UUID, keyId uuid.UUID) (*models.Ssh
 }
 
 func (repo *UserRepo) DeleteUserKeyTx(user *models.User, id uuid.UUID, tx pgx.Tx) error {
-	_, err := tx.Exec(context.TODO(), "delete from ssh_keys where user_id = $1 and id = $2", user.ID, id)
+	// Get the key first so we can record its information in the change history
+	q := do.MustInvoke[query.QueryServiceTx[models.SshKey]](repo.Injector)
+	key, err := q.QueryOne(tx, "SELECT * FROM ssh_keys WHERE user_id = $1 AND id = $2", user.ID, id)
+	if err != nil {
+		return err
+	}
+	
+	if key == nil {
+		// Key doesn't exist, nothing to delete
+		return nil
+	}
+	
+	// Record the change
+	changeRepo := &SshKeyChangeRepo{Injector: repo.Injector}
+	change := &models.SshKeyChange{
+		SshKeyID:     key.ID,
+		UserID:       key.UserID,
+		ChangeType:   models.Deleted,
+		Filename:     key.Filename,
+		PreviousData: key.Data,
+	}
+	
+	_, err = changeRepo.CreateKeyChangeTx(change, tx)
+	if err != nil {
+		return err
+	}
+	
+	// Now delete the key
+	_, err = tx.Exec(context.TODO(), "DELETE FROM ssh_keys WHERE user_id = $1 AND id = $2", user.ID, id)
 	return err
 }
