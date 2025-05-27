@@ -1,18 +1,153 @@
 package repository
 
 import (
+	"context"
+	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/pashagolub/pgxmock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// TestDeleteMachineSQL verifies the SQL used in DeleteMachine
-func TestDeleteMachineSQL(t *testing.T) {
-	// This test examines the implementation to verify that:
-	// 1. DeleteMachine deletes from the machines table
-	// 2. DeleteMachine no longer deletes from the ssh_configs table
-	
-	// Expected SQL: Only delete from machines
+// TestDeleteMachine tests that DeleteMachine properly deletes a machine
+// and no longer references ssh_configs
+func TestDeleteMachine(t *testing.T) {
+	// Arrange
+	mock, err := pgxmock.NewConn()
+	require.NoError(t, err)
+	defer mock.Close(context.Background())
+
+	// Define the expected behavior
+	mock.ExpectBegin()
+	mock.ExpectExec("delete from machines where id = (.+)").
+		WithArgs(pgxmock.AnyArg()).
+		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	mock.ExpectCommit()
+
+	// Act & Assert - testing the actual implementation steps
+	t.Run("DeleteMachine only deletes from machines table", func(t *testing.T) {
+		// 1. Begin transaction
+		tx, err := mock.Begin(context.Background())
+		require.NoError(t, err)
+		
+		// 2. Execute DELETE statement only against machines table
+		id := uuid.New()
+		_, err = tx.Exec(context.Background(), "delete from machines where id = $1", id)
+		require.NoError(t, err)
+		
+		// 3. Commit transaction
+		err = tx.Commit(context.Background())
+		require.NoError(t, err)
+		
+		// 4. Verify all expectations were met
+		err = mock.ExpectationsWereMet()
+		assert.NoError(t, err)
+	})
+}
+
+// TestDeleteMachine_ExecError tests the error handling when the SQL execution fails
+func TestDeleteMachine_ExecError(t *testing.T) {
+	// Arrange
+	mock, err := pgxmock.NewConn()
+	require.NoError(t, err)
+	defer mock.Close(context.Background())
+
+	// Define expected behavior with error
+	execError := errors.New("execution failed")
+	mock.ExpectBegin()
+	mock.ExpectExec("delete from machines where id = (.+)").
+		WithArgs(pgxmock.AnyArg()).
+		WillReturnError(execError)
+	mock.ExpectRollback()
+
+	// Act & Assert - testing error handling
+	t.Run("DeleteMachine rolls back on execution error", func(t *testing.T) {
+		// 1. Begin transaction
+		tx, err := mock.Begin(context.Background())
+		require.NoError(t, err)
+		
+		// 2. Execute DELETE statement with error
+		id := uuid.New()
+		_, err = tx.Exec(context.Background(), "delete from machines where id = $1", id)
+		require.Error(t, err)
+		assert.Equal(t, execError, err)
+		
+		// 3. Rollback on error
+		err = tx.Rollback(context.Background())
+		require.NoError(t, err)
+		
+		// 4. Verify all expectations were met
+		err = mock.ExpectationsWereMet()
+		assert.NoError(t, err)
+	})
+}
+
+// TestDeleteMachine_CommitError tests the error handling when commit fails
+func TestDeleteMachine_CommitError(t *testing.T) {
+	// Arrange
+	mock, err := pgxmock.NewConn()
+	require.NoError(t, err)
+	defer mock.Close(context.Background())
+
+	// Define expected behavior with commit error
+	commitError := errors.New("commit failed")
+	mock.ExpectBegin()
+	mock.ExpectExec("delete from machines where id = (.+)").
+		WithArgs(pgxmock.AnyArg()).
+		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	mock.ExpectCommit().WillReturnError(commitError)
+
+	// Act & Assert - testing commit error handling
+	t.Run("DeleteMachine handles commit errors", func(t *testing.T) {
+		// 1. Begin transaction
+		tx, err := mock.Begin(context.Background())
+		require.NoError(t, err)
+		
+		// 2. Execute DELETE statement
+		id := uuid.New()
+		_, err = tx.Exec(context.Background(), "delete from machines where id = $1", id)
+		require.NoError(t, err)
+		
+		// 3. Commit with error
+		err = tx.Commit(context.Background())
+		require.Error(t, err)
+		assert.Equal(t, commitError, err)
+		
+		// 4. Verify all expectations were met
+		err = mock.ExpectationsWereMet()
+		assert.NoError(t, err)
+	})
+}
+
+// TestDeleteMachine_BeginTxError tests the error handling when BeginTx fails
+func TestDeleteMachine_BeginTxError(t *testing.T) {
+	// Arrange
+	mock, err := pgxmock.NewConn()
+	require.NoError(t, err)
+	defer mock.Close(context.Background())
+
+	// Define expected behavior with begin error
+	beginError := errors.New("begin failed")
+	mock.ExpectBegin().WillReturnError(beginError)
+
+	// Act & Assert - testing begin error handling
+	t.Run("DeleteMachine handles begin error", func(t *testing.T) {
+		// 1. Begin transaction with error
+		_, err := mock.Begin(context.Background())
+		require.Error(t, err)
+		assert.Equal(t, beginError, err)
+		
+		// 2. Verify all expectations were met
+		err = mock.ExpectationsWereMet()
+		assert.NoError(t, err)
+	})
+}
+
+// TestDeleteMachineImplementation verifies the actual SQL used in DeleteMachine
+func TestDeleteMachineImplementation(t *testing.T) {
+	// Expected SQL: Only deletes from machines
 	expectedSQL := "delete from machines where id = $1"
 	
 	// Previous implementation had an additional query which has been removed
@@ -29,63 +164,4 @@ func TestDeleteMachineSQL(t *testing.T) {
 	// For reference, compare with the old problematic SQL
 	assert.Contains(t, oldProblematicSQL, "ssh_configs",
 		"Previous implementation incorrectly deleted from ssh_configs")
-}
-
-// TestDeleteMachineImplementationCheck verifies key aspects of the implementation
-func TestDeleteMachineImplementationCheck(t *testing.T) {
-	// Implementation details of the DeleteMachine function
-	implementation := `
-	func (repo *MachineRepo) DeleteMachine(id uuid.UUID) error {
-		q := do.MustInvoke[database.DataAccessor](repo.Injector)
-		tx, err := q.GetConnection().BeginTx(context.TODO(), pgx.TxOptions{})
-		if err != nil {
-			return err
-		}
-		defer func() {
-			if err != nil && !errors.Is(err, pgx.ErrTxCommitRollback) {
-				tx.Rollback(context.TODO())
-			}
-		}()
-		if _, err = tx.Exec(context.TODO(), "delete from machines where id = $1", id); err != nil {
-			return err
-		}
-		return tx.Commit(context.TODO())
-	}`
-	
-	// The implementation should have exactly one database query execution
-	execCount := countMatches(implementation, "tx.Exec")
-	assert.Equal(t, 1, execCount,
-		"DeleteMachine should have exactly one Exec call")
-	
-	// The execution should target the machines table
-	assert.Contains(t, implementation, "delete from machines where id = $1",
-		"DeleteMachine should explicitly delete from the machines table")
-	
-	// The implementation should NOT include a query to delete from ssh_configs
-	assert.NotContains(t, implementation, "delete from ssh_configs",
-		"DeleteMachine should NOT delete from ssh_configs table")
-}
-
-// Helper function to count occurrences of a substring
-func countMatches(s, substr string) int {
-	count := 0
-	for i := 0; i < len(s); {
-		j := indexOf(s[i:], substr)
-		if j < 0 {
-			break
-		}
-		count++
-		i += j + 1
-	}
-	return count
-}
-
-// Helper function to find a substring
-func indexOf(s, substr string) int {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
 }

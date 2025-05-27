@@ -5,13 +5,14 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // PgxTxInterface defines interface methods needed for mocking pgx.Tx
 type PgxTxInterface interface {
 	Commit(ctx context.Context) error
 	Rollback(ctx context.Context) error
-	Exec(ctx context.Context, sql string, args ...interface{}) (pgx.CommandTag, error)
+	Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error)
 }
 
 // PgxConnInterface defines interface methods needed for mocking pgx.Conn
@@ -63,7 +64,7 @@ func (mr *MockPgxTxMockRecorder) Rollback(ctx interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rollback", nil, ctx)
 }
 
-func (m *MockPgxTx) Exec(ctx context.Context, sql string, args ...interface{}) (pgx.CommandTag, error) {
+func (m *MockPgxTx) Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{ctx, sql}
 	for _, a := range args {
@@ -71,7 +72,7 @@ func (m *MockPgxTx) Exec(ctx context.Context, sql string, args ...interface{}) (
 	}
 	ret := m.ctrl.Call(m, "Exec", varargs...)
 	// We're creating a mock CommandTag
-	var cmdTag pgx.CommandTag
+	var cmdTag pgconn.CommandTag
 	ret1, _ := ret[1].(error)
 	return cmdTag, ret1
 }
