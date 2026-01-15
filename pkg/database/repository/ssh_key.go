@@ -19,7 +19,7 @@ type SshKeyRepo struct {
 
 func (repo *SshKeyRepo) CreateSshKey(sshKey *models.SshKey) (*models.SshKey, error) {
 	q := do.MustInvoke[query.QueryService[models.SshKey]](repo.Injector)
-	key, err := q.QueryOne("INSERT INTO ssh_keys (user_id, filename, data, updated_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP) RETURNING *", sshKey.UserID, sshKey.Filename, sshKey.Data)
+	key, err := q.QueryOne("INSERT INTO ssh_keys (user_id, filename, data, updated_at) VALUES ($1, $2, $3, (now() AT TIME ZONE 'UTC')) RETURNING *", sshKey.UserID, sshKey.Filename, sshKey.Data)
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +29,7 @@ func (repo *SshKeyRepo) CreateSshKey(sshKey *models.SshKey) (*models.SshKey, err
 
 func (repo *SshKeyRepo) UpsertSshKey(sshKey *models.SshKey) (*models.SshKey, error) {
 	q := do.MustInvoke[query.QueryService[models.SshKey]](repo.Injector)
-	key, err := q.QueryOne("INSERT INTO ssh_keys (user_id, filename, data, updated_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP) ON CONFLICT (user_id, filename) DO UPDATE SET data = $3, updated_at = CURRENT_TIMESTAMP RETURNING *", sshKey.UserID, sshKey.Filename, sshKey.Data)
+	key, err := q.QueryOne("INSERT INTO ssh_keys (user_id, filename, data, updated_at) VALUES ($1, $2, $3, (now() AT TIME ZONE 'UTC')) ON CONFLICT (user_id, filename) DO UPDATE SET data = $3, updated_at = (now() AT TIME ZONE 'UTC') RETURNING *", sshKey.UserID, sshKey.Filename, sshKey.Data)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +38,7 @@ func (repo *SshKeyRepo) UpsertSshKey(sshKey *models.SshKey) (*models.SshKey, err
 
 func (repo *SshKeyRepo) UpsertSshKeyTx(sshKey *models.SshKey, tx pgx.Tx) (*models.SshKey, error) {
 	q := do.MustInvoke[query.QueryServiceTx[models.SshKey]](repo.Injector)
-	key, err := q.QueryOne(tx, "INSERT INTO ssh_keys (user_id, filename, data, updated_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP) ON CONFLICT (user_id, filename) DO UPDATE SET data = $3, updated_at = CURRENT_TIMESTAMP RETURNING *", sshKey.UserID, sshKey.Filename, sshKey.Data)
+	key, err := q.QueryOne(tx, "INSERT INTO ssh_keys (user_id, filename, data, updated_at) VALUES ($1, $2, $3, (now() AT TIME ZONE 'UTC')) ON CONFLICT (user_id, filename) DO UPDATE SET data = $3, updated_at = (now() AT TIME ZONE 'UTC') RETURNING *", sshKey.UserID, sshKey.Filename, sshKey.Data)
 	if err != nil {
 		return nil, err
 	}
