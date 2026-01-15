@@ -47,10 +47,11 @@ func getData(i *do.Injector) http.HandlerFunc {
 			Username: user.Username,
 			Keys: lo.Map(user.Keys, func(key models.SshKey, index int) dto.KeyDto {
 				return dto.KeyDto{
-					ID:       key.ID,
-					UserID:   key.UserID,
-					Filename: key.Filename,
-					Data:     key.Data,
+					ID:        key.ID,
+					UserID:    key.UserID,
+					Filename:  key.Filename,
+					Data:      key.Data,
+					UpdatedAt: &key.UpdatedAt,
 				}
 			}),
 			SshConfig: lo.Map(user.Config, func(conf models.SshConfig, index int) dto.SshConfigDto {
