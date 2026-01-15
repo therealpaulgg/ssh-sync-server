@@ -51,7 +51,7 @@ func getData(i *do.Injector) http.HandlerFunc {
 					UserID:    key.UserID,
 					Filename:  key.Filename,
 					Data:      key.Data,
-					UpdatedAt: &key.UpdatedAt,
+					UpdatedAt: key.UpdatedAt,
 				}
 			}),
 			SshConfig: lo.Map(user.Config, func(conf models.SshConfig, index int) dto.SshConfigDto {
