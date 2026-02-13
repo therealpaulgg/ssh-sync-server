@@ -20,6 +20,7 @@ type MachineRepository interface {
 	CreateMachine(machine *models.Machine) (*models.Machine, error)
 	CreateMachineTx(machine *models.Machine, tx pgx.Tx) (*models.Machine, error)
 	GetUserMachines(id uuid.UUID) ([]models.Machine, error)
+	UpdateMachinePublicKey(id uuid.UUID, publicKey []byte) error
 }
 
 type MachineRepo struct {
@@ -105,6 +106,16 @@ func (repo *MachineRepo) CreateMachineTx(machine *models.Machine, tx pgx.Tx) (*m
 		return nil, sql.ErrNoRows
 	}
 	return newMachine, nil
+}
+
+func (repo *MachineRepo) UpdateMachinePublicKey(id uuid.UUID, publicKey []byte) error {
+	q := do.MustInvoke[database.DataAccessor](repo.Injector)
+	_, err := q.GetConnection().Exec(
+		context.TODO(),
+		"UPDATE machines SET public_key = $1 WHERE id = $2",
+		publicKey, id,
+	)
+	return err
 }
 
 func (repo *MachineRepo) GetUserMachines(id uuid.UUID) ([]models.Machine, error) {

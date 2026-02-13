@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/go-chi/chi"
@@ -11,6 +12,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
 	"github.com/samber/lo"
+	pqc "github.com/therealpaulgg/ssh-sync-server/pkg/crypto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
@@ -109,11 +111,49 @@ func deleteMachine(i *do.Injector) http.HandlerFunc {
 	}
 }
 
+func updateMachineKey(i *do.Injector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		machine, ok := r.Context().Value(context_keys.MachineContextKey).(*models.Machine)
+		if !ok {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		err := r.ParseMultipartForm(32 << 20)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		file, _, err := r.FormFile("key")
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		fileBytes, err := io.ReadAll(file)
+		if err != nil {
+			log.Err(err).Msg("error reading key file")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if _, err := pqc.ValidatePublicKey(fileBytes); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		machineRepo := do.MustInvoke[repository.MachineRepository](i)
+		if err := machineRepo.UpdateMachinePublicKey(machine.ID, fileBytes); err != nil {
+			log.Err(err).Msg("error updating machine public key")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}
+}
+
 func MachineRoutes(i *do.Injector) chi.Router {
 	r := chi.NewRouter()
 	r.Use(middleware.ConfigureAuth(i))
 	r.Get("/{machineId}", getMachineById(i))
 	r.Get("/", getMachines(i))
 	r.Delete("/", deleteMachine(i))
+	r.Put("/key", updateMachineKey(i))
 	return r
 }

@@ -7,10 +7,9 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/jackc/pgx/v5"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
+	pqc "github.com/therealpaulgg/ssh-sync-server/pkg/crypto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
@@ -49,14 +48,8 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		// validate that it is in fact a public key
-		key, err := jwk.ParseKey(fileBytes, jwk.WithPEM(true))
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		keyType := key.KeyType()
-		if keyType != jwa.EC {
+		// validate that it is a supported public key (ECDSA or ML-DSA-65)
+		if _, err := pqc.ValidatePublicKey(fileBytes); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
