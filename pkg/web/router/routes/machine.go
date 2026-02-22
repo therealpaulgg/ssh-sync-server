@@ -12,12 +12,12 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
 	"github.com/samber/lo"
+	"github.com/therealpaulgg/ssh-sync-common/pkg/dto"
 	pqc "github.com/therealpaulgg/ssh-sync-server/pkg/crypto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware/context_keys"
-	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
 
 type DeleteRequest struct {

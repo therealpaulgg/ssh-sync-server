@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/samber/do"
+	"github.com/therealpaulgg/ssh-sync-common/pkg/dto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
-	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
 
 func getUser(i *do.Injector) http.HandlerFunc {

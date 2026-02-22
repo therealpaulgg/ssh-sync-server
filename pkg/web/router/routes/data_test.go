@@ -16,12 +16,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/do"
 	"github.com/stretchr/testify/assert"
+	"github.com/therealpaulgg/ssh-sync-common/pkg/dto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/testutils"
 	"github.com/therealpaulgg/ssh-sync-server/test/pgx"
-	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
 
 func TestGetData(t *testing.T) {
