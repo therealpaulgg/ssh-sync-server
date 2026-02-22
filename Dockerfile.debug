@@ -6,6 +6,7 @@ ENV CGO_ENABLED=0
 WORKDIR /app
 
 COPY . .
+COPY ./ssh-sync .ssh-sync
 
 RUN go mod download
 RUN go mod verify
