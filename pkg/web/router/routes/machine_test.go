@@ -150,12 +150,69 @@ func TestDeleteMachine(t *testing.T) {
 }
 
 func TestUpdateMachineKey(t *testing.T) {
-	// Arrange
-	pub, _, err := testutils.GenerateMLDSA65TestKeys()
+	// Arrange — upload a two-block PEM (EC key + encapsulation key)
+	combinedPEM, pubPEM, encapPEM, err := testutils.GenerateHybridKeyPEM()
 	if err != nil {
 		t.Fatal(err)
 	}
-	pubPEM, err := testutils.EncodeMLDSA65ToPem(pub)
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("key", "key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = part.Write(combinedPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = writer.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req, err := http.NewRequest("PUT", "/key", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	user := testutils.GenerateUser()
+	machine := &models.Machine{
+		ID:        uuid.New(),
+		UserID:    user.ID,
+		Name:      "test",
+		PublicKey: []byte("old-key"),
+	}
+	req = testutils.AddUserContext(req, user)
+	req = testutils.AddMachineContext(req, machine)
+
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockMachineRepo := repository.NewMockMachineRepository(ctrl)
+	mockMachineRepo.EXPECT().UpdateMachineKeys(machine.ID, pubPEM, encapPEM).Return(nil)
+	do.Provide(injector, func(i *do.Injector) (repository.MachineRepository, error) {
+		return mockMachineRepo, nil
+	})
+
+	// Act
+	rr := httptest.NewRecorder()
+	router := chi.NewRouter()
+	router.Put("/key", updateMachineKey(injector))
+	router.ServeHTTP(rr, req)
+
+	// Assert
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestUpdateMachineKey_LegacyECOnly(t *testing.T) {
+	// Arrange — upload EC-only PEM (no encapsulation key)
+	priv, pub, err := testutils.GenerateTestKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pubPEM, _, err := testutils.EncodeToPem(priv, pub)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +252,8 @@ func TestUpdateMachineKey(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockMachineRepo := repository.NewMockMachineRepository(ctrl)
-	mockMachineRepo.EXPECT().UpdateMachinePublicKey(machine.ID, pubPEM).Return(nil)
+	// For legacy EC-only uploads, encapsulation key is nil
+	mockMachineRepo.EXPECT().UpdateMachineKeys(machine.ID, pubPEM, []byte(nil)).Return(nil)
 	do.Provide(injector, func(i *do.Injector) (repository.MachineRepository, error) {
 		return mockMachineRepo, nil
 	})

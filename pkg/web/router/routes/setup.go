@@ -48,8 +48,10 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		// validate that it is a supported public key (ECDSA or ML-DSA-65)
-		if _, err := pqc.ValidatePublicKey(fileBytes); err != nil {
+		// Parse the PEM file (may contain EC public key + optional ML-KEM encapsulation key)
+		parsed, err := pqc.ParsePublicKeyPEM(fileBytes)
+		if err != nil {
+			log.Debug().Err(err).Msg("invalid public key PEM")
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -78,7 +80,8 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 		machine := &models.Machine{}
 		machine.Name = machineName
 		machine.UserID = user.ID
-		machine.PublicKey = fileBytes
+		machine.PublicKey = parsed.SigningKey
+		machine.EncapsulationKey = parsed.EncapsulationKey
 		_, err = machineRepo.CreateMachineTx(machine, tx)
 		if err != nil {
 			if errors.Is(err, repository.ErrMachineAlreadyExists) {

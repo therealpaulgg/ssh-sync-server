@@ -110,18 +110,18 @@ func (mr *MockMachineRepositoryMockRecorder) GetMachineByNameAndUser(machineName
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMachineByNameAndUser", reflect.TypeOf((*MockMachineRepository)(nil).GetMachineByNameAndUser), machineName, userID)
 }
 
-// UpdateMachinePublicKey mocks base method.
-func (m *MockMachineRepository) UpdateMachinePublicKey(id uuid.UUID, publicKey []byte) error {
+// UpdateMachineKeys mocks base method.
+func (m *MockMachineRepository) UpdateMachineKeys(id uuid.UUID, publicKey []byte, encapsulationKey []byte) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateMachinePublicKey", id, publicKey)
+	ret := m.ctrl.Call(m, "UpdateMachineKeys", id, publicKey, encapsulationKey)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpdateMachinePublicKey indicates an expected call of UpdateMachinePublicKey.
-func (mr *MockMachineRepositoryMockRecorder) UpdateMachinePublicKey(id, publicKey interface{}) *gomock.Call {
+// UpdateMachineKeys indicates an expected call of UpdateMachineKeys.
+func (mr *MockMachineRepositoryMockRecorder) UpdateMachineKeys(id, publicKey, encapsulationKey interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMachinePublicKey", reflect.TypeOf((*MockMachineRepository)(nil).UpdateMachinePublicKey), id, publicKey)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMachineKeys", reflect.TypeOf((*MockMachineRepository)(nil).UpdateMachineKeys), id, publicKey, encapsulationKey)
 }
 
 // GetUserMachines mocks base method.

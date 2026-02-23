@@ -5,8 +5,9 @@ import (
 )
 
 type Machine struct {
-	ID        uuid.UUID `json:"id" db:"id"`
-	UserID    uuid.UUID `json:"user_id" db:"user_id"`
-	Name      string    `json:"name" db:"name"`
-	PublicKey []byte    `json:"public_key" db:"public_key"`
+	ID               uuid.UUID `json:"id" db:"id"`
+	UserID           uuid.UUID `json:"user_id" db:"user_id"`
+	Name             string    `json:"name" db:"name"`
+	PublicKey        []byte    `json:"public_key" db:"public_key"`
+	EncapsulationKey []byte    `json:"encapsulation_key,omitempty" db:"encapsulation_key"`
 }

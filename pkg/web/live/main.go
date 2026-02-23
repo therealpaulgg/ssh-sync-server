@@ -269,17 +269,27 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		return
 	}
 
-	// Validate the public key format before storing
-	if _, err := pqc.ValidatePublicKey(pubkey.Data.PublicKey); err != nil {
+	// Validate the signing key format
+	if _, err := pqc.ParsePublicKeyPEM(pubkey.Data.PublicKey); err != nil {
 		log.Err(err).Msg("Invalid public key format in challenge flow")
 		if err := wsutils.WriteServerError[dto.MessageDto](&conn, "Invalid public key format"); err != nil {
 			log.Err(err).Msg("Error writing server error")
 		}
 		return
 	}
+	// Validate encapsulation key if present
+	if err := pqc.ValidateEncapsulationKeyPEM(pubkey.Data.EncapsulationKey); err != nil {
+		log.Err(err).Msg("Invalid encapsulation key format in challenge flow")
+		if err := wsutils.WriteServerError[dto.MessageDto](&conn, "Invalid encapsulation key format"); err != nil {
+			log.Err(err).Msg("Error writing server error")
+		}
+		return
+	}
+
 	cha.ChallengerChannel <- &pubkey.Data
 	encryptedMasterKey := <-cha.ResponderChannel
 	machine.PublicKey = pubkey.Data.PublicKey
+	machine.EncapsulationKey = pubkey.Data.EncapsulationKey
 	if _, err = machineRepo.CreateMachine(machine); err != nil {
 		log.Err(err).Msg("Error creating machine")
 		return
