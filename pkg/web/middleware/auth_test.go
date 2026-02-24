@@ -20,10 +20,6 @@ import (
 )
 
 func GenerateTestToken(username, machine string, key jwk.Key) (string, error) {
-	return generateTestTokenWithAlg(username, machine, key, jwa.ES512)
-}
-
-func generateTestTokenWithAlg(username, machine string, key jwk.Key, alg jwa.SignatureAlgorithm) (string, error) {
 	builder := jwt.NewBuilder()
 	builder.Issuer("github.com/therealpaulgg/ssh-sync")
 	builder.IssuedAt(time.Now())
@@ -34,7 +30,7 @@ func generateTestTokenWithAlg(username, machine string, key jwk.Key, alg jwa.Sig
 	if err != nil {
 		return "", err
 	}
-	signed, err := jwt.Sign(tok, jwt.WithKey(alg, key))
+	signed, err := jwt.Sign(tok, jwt.WithKey(jwa.ES512, key))
 	if err != nil {
 		return "", err
 	}
@@ -91,60 +87,6 @@ func TestConfigureAuth(t *testing.T) {
 	f := ConfigureAuth(i)
 	f(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Dummy handler
-		w.WriteHeader(http.StatusOK)
-	})).ServeHTTP(rr, req)
-
-	// Assert
-	assert.Equal(t, http.StatusOK, rr.Code)
-}
-
-func TestConfigureAuth_ES256(t *testing.T) {
-	// Arrange
-	i := do.New()
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	priv, pub, err := testutils.GenerateTestKeys()
-	if err != nil {
-		t.Fatal(err)
-	}
-	pubBytes, privBytes, err := testutils.EncodeToPem(priv, pub)
-	if err != nil {
-		t.Fatal(err)
-	}
-	key, err := jwk.ParseKey(privBytes, jwk.WithPEM(true))
-	if err != nil {
-		t.Fatal(err)
-	}
-	user := &models.User{ID: uuid.New(), Username: "testuser"}
-	machine := &models.Machine{ID: uuid.New(), Name: "testmachine", UserID: user.ID, PublicKey: pubBytes}
-	token, err := generateTestTokenWithAlg(user.Username, machine.Name, key, jwa.ES256)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	mockUserRepo := repository.NewMockUserRepository(ctrl)
-	mockUserRepo.EXPECT().GetUserByUsername(user.Username).Return(user, nil).Times(1)
-	do.Provide(i, func(i *do.Injector) (repository.UserRepository, error) {
-		return mockUserRepo, nil
-	})
-
-	mockMachineRepo := repository.NewMockMachineRepository(ctrl)
-	mockMachineRepo.EXPECT().GetMachineByNameAndUser(machine.Name, user.ID).Return(machine, nil).Times(1)
-	do.Provide(i, func(i *do.Injector) (repository.MachineRepository, error) {
-		return mockMachineRepo, nil
-	})
-
-	req, err := http.NewRequest("GET", "/", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	// Act
-	rr := httptest.NewRecorder()
-	f := ConfigureAuth(i)
-	f(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})).ServeHTTP(rr, req)
 
@@ -385,6 +327,166 @@ func TestConfigureAuthFakeToken(t *testing.T) {
 	f := ConfigureAuth(i)
 	f(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Dummy handler
+		w.WriteHeader(http.StatusOK)
+	})).ServeHTTP(rr, req)
+
+	// Assert
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+func TestConfigureAuth_MLDSA65(t *testing.T) {
+	// Arrange
+	i := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	pub, priv, err := testutils.GenerateMLDSA65TestKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pubPEM, err := testutils.EncodeMLDSA65ToPem(pub)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	user := &models.User{ID: uuid.New(), Username: "testuser"}
+	machine := &models.Machine{ID: uuid.New(), Name: "testmachine", UserID: user.ID, PublicKey: pubPEM}
+	token, err := testutils.GenerateMLDSA65TestToken(user.Username, machine.Name, priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	mockUserRepo.EXPECT().GetUserByUsername(user.Username).Return(user, nil).Times(1)
+	do.Provide(i, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
+	})
+
+	mockMachineRepo := repository.NewMockMachineRepository(ctrl)
+	mockMachineRepo.EXPECT().GetMachineByNameAndUser(machine.Name, user.ID).Return(machine, nil).Times(1)
+	do.Provide(i, func(i *do.Injector) (repository.MachineRepository, error) {
+		return mockMachineRepo, nil
+	})
+
+	req, err := http.NewRequest("GET", "/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	// Act
+	rr := httptest.NewRecorder()
+	f := ConfigureAuth(i)
+	f(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})).ServeHTTP(rr, req)
+
+	// Assert
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestConfigureAuth_MLDSA65_WrongKey(t *testing.T) {
+	// Arrange
+	i := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Generate two different keypairs
+	pub1, _, err := testutils.GenerateMLDSA65TestKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, priv2, err := testutils.GenerateMLDSA65TestKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Store pub1 but sign with priv2
+	pubPEM, err := testutils.EncodeMLDSA65ToPem(pub1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	user := &models.User{ID: uuid.New(), Username: "testuser"}
+	machine := &models.Machine{ID: uuid.New(), Name: "testmachine", UserID: user.ID, PublicKey: pubPEM}
+	token, err := testutils.GenerateMLDSA65TestToken(user.Username, machine.Name, priv2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	mockUserRepo.EXPECT().GetUserByUsername(user.Username).Return(user, nil).Times(1)
+	do.Provide(i, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
+	})
+
+	mockMachineRepo := repository.NewMockMachineRepository(ctrl)
+	mockMachineRepo.EXPECT().GetMachineByNameAndUser(machine.Name, user.ID).Return(machine, nil).Times(1)
+	do.Provide(i, func(i *do.Injector) (repository.MachineRepository, error) {
+		return mockMachineRepo, nil
+	})
+
+	req, err := http.NewRequest("GET", "/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	// Act
+	rr := httptest.NewRecorder()
+	f := ConfigureAuth(i)
+	f(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})).ServeHTTP(rr, req)
+
+	// Assert
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+func TestConfigureAuth_MLDSA65_Expired(t *testing.T) {
+	// Arrange
+	i := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	pub, priv, err := testutils.GenerateMLDSA65TestKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pubPEM, err := testutils.EncodeMLDSA65ToPem(pub)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	user := &models.User{ID: uuid.New(), Username: "testuser"}
+	machine := &models.Machine{ID: uuid.New(), Name: "testmachine", UserID: user.ID, PublicKey: pubPEM}
+	token, err := testutils.GenerateExpiredMLDSA65TestToken(user.Username, machine.Name, priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	mockUserRepo.EXPECT().GetUserByUsername(user.Username).Return(user, nil).Times(1)
+	do.Provide(i, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
+	})
+
+	mockMachineRepo := repository.NewMockMachineRepository(ctrl)
+	mockMachineRepo.EXPECT().GetMachineByNameAndUser(machine.Name, user.ID).Return(machine, nil).Times(1)
+	do.Provide(i, func(i *do.Injector) (repository.MachineRepository, error) {
+		return mockMachineRepo, nil
+	})
+
+	req, err := http.NewRequest("GET", "/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	// Act
+	rr := httptest.NewRecorder()
+	f := ConfigureAuth(i)
+	f(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})).ServeHTTP(rr, req)
 

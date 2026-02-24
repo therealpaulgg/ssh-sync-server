@@ -7,79 +7,76 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
-const mlkem768EncapsulationKeySize = 1184
+// KeyType represents the cryptographic algorithm family of a public key.
+type KeyType int
 
-// ParsedKeys holds the signing key and optional encapsulation key
-// extracted from a (possibly multi-block) PEM upload.
-type ParsedKeys struct {
-	SigningKey        []byte // PEM-encoded EC public key (always present)
-	EncapsulationKey  []byte // PEM-encoded ML-KEM-768 encapsulation key (nil for legacy)
-}
+const (
+	KeyTypeUnknown KeyType = iota
+	KeyTypeECDSA
+	KeyTypeMLDSA65
+)
 
-// ParsePublicKeyPEM parses a PEM file that may contain one or two blocks:
-//   - "PUBLIC KEY" (ECDSA, required) — used for JWT verification
-//   - "MLKEM768 ENCAPSULATION KEY" (optional) — stored for hybrid key exchange
-//
-// Legacy users send only the PUBLIC KEY block. Hybrid users send both.
-func ParsePublicKeyPEM(pemData []byte) (*ParsedKeys, error) {
-	result := &ParsedKeys{}
-	rest := pemData
-
-	for {
-		block, remaining := pem.Decode(rest)
-		if block == nil {
-			break
-		}
-		switch block.Type {
-		case "PUBLIC KEY":
-			// Validate it's actually an EC key
-			singlePEM := pem.EncodeToMemory(block)
-			key, err := jwk.ParseKey(singlePEM, jwk.WithPEM(true))
-			if err != nil {
-				return nil, fmt.Errorf("invalid EC public key: %w", err)
-			}
-			if key.KeyType() != jwa.EC {
-				return nil, errors.New("public key is not EC type")
-			}
-			result.SigningKey = singlePEM
-		case "MLKEM768 ENCAPSULATION KEY":
-			if len(block.Bytes) != mlkem768EncapsulationKeySize {
-				return nil, fmt.Errorf("ML-KEM-768 encapsulation key has wrong size: got %d, want %d", len(block.Bytes), mlkem768EncapsulationKeySize)
-			}
-			result.EncapsulationKey = pem.EncodeToMemory(block)
-		default:
-			return nil, fmt.Errorf("unexpected PEM block type: %s", block.Type)
-		}
-		rest = remaining
-	}
-
-	if result.SigningKey == nil {
-		return nil, errors.New("no EC public key found in PEM data")
-	}
-	return result, nil
-}
-
-// ValidateEncapsulationKeyPEM validates a standalone ML-KEM-768 encapsulation key PEM.
-func ValidateEncapsulationKeyPEM(pemBytes []byte) error {
-	if len(pemBytes) == 0 {
-		return nil // nil/empty is valid (legacy user)
-	}
+// DetectKeyType inspects the PEM block type to determine the key algorithm.
+func DetectKeyType(pemBytes []byte) KeyType {
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
-		return errors.New("failed to decode encapsulation key PEM")
+		return KeyTypeUnknown
 	}
-	if block.Type != "MLKEM768 ENCAPSULATION KEY" {
-		return fmt.Errorf("unexpected PEM block type for encapsulation key: %s", block.Type)
+	switch block.Type {
+	case "PUBLIC KEY":
+		return KeyTypeECDSA
+	case "MLDSA65 PUBLIC KEY":
+		return KeyTypeMLDSA65
+	default:
+		return KeyTypeUnknown
 	}
-	if len(block.Bytes) != mlkem768EncapsulationKeySize {
-		return fmt.Errorf("ML-KEM-768 encapsulation key has wrong size: got %d, want %d", len(block.Bytes), mlkem768EncapsulationKeySize)
+}
+
+// ParseMLDSA65PublicKey extracts an ML-DSA-65 public key from PEM-encoded bytes.
+func ParseMLDSA65PublicKey(pemBytes []byte) (*mldsa65.PublicKey, error) {
+	block, _ := pem.Decode(pemBytes)
+	if block == nil {
+		return nil, errors.New("failed to decode PEM block")
 	}
-	return nil
+	if block.Type != "MLDSA65 PUBLIC KEY" {
+		return nil, fmt.Errorf("unexpected PEM block type: %s", block.Type)
+	}
+	pk := new(mldsa65.PublicKey)
+	if err := pk.UnmarshalBinary(block.Bytes); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ML-DSA-65 public key: %w", err)
+	}
+	return pk, nil
+}
+
+// ValidatePublicKey validates that the given PEM bytes contain a supported public key.
+// Returns the detected KeyType on success.
+func ValidatePublicKey(pemBytes []byte) (KeyType, error) {
+	kt := DetectKeyType(pemBytes)
+	switch kt {
+	case KeyTypeECDSA:
+		key, err := jwk.ParseKey(pemBytes, jwk.WithPEM(true))
+		if err != nil {
+			return KeyTypeUnknown, fmt.Errorf("invalid ECDSA key: %w", err)
+		}
+		if key.KeyType() != jwa.EC {
+			return KeyTypeUnknown, errors.New("key is not EC type")
+		}
+		return KeyTypeECDSA, nil
+	case KeyTypeMLDSA65:
+		if _, err := ParseMLDSA65PublicKey(pemBytes); err != nil {
+			return KeyTypeUnknown, err
+		}
+		return KeyTypeMLDSA65, nil
+	default:
+		return KeyTypeUnknown, errors.New("unsupported key type")
+	}
 }
 
 type jwtHeader struct {
@@ -102,4 +99,68 @@ func DetectJWTAlgorithm(tokenString string) (string, error) {
 		return "", fmt.Errorf("failed to parse JWT header: %w", err)
 	}
 	return header.Alg, nil
+}
+
+type jwtClaims struct {
+	Username string  `json:"username"`
+	Machine  string  `json:"machine"`
+	Exp      float64 `json:"exp"`
+}
+
+// ExtractJWTClaims manually extracts username and machine claims from a JWT
+// without verification. This is used as a fallback when lestrrat-go/jwx
+// cannot parse the token (e.g., unrecognized algorithm like MLDSA65).
+func ExtractJWTClaims(tokenString string) (username, machine string, err error) {
+	parts := strings.SplitN(tokenString, ".", 3)
+	if len(parts) != 3 {
+		return "", "", errors.New("invalid JWT format")
+	}
+	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", "", fmt.Errorf("failed to decode JWT payload: %w", err)
+	}
+	var claims jwtClaims
+	if err := json.Unmarshal(payloadBytes, &claims); err != nil {
+		return "", "", fmt.Errorf("failed to parse JWT claims: %w", err)
+	}
+	return claims.Username, claims.Machine, nil
+}
+
+// VerifyMLDSA65JWT verifies a JWT signed with ML-DSA-65 and checks expiration.
+func VerifyMLDSA65JWT(tokenString string, pubKey *mldsa65.PublicKey) error {
+	parts := strings.SplitN(tokenString, ".", 3)
+	if len(parts) != 3 {
+		return errors.New("invalid JWT format")
+	}
+
+	// The signed content is the raw "header.payload" string (not decoded)
+	signedContent := []byte(parts[0] + "." + parts[1])
+
+	// Decode signature
+	sigBytes, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil {
+		return fmt.Errorf("failed to decode signature: %w", err)
+	}
+
+	// Verify signature using CIRCL
+	if !mldsa65.Verify(pubKey, signedContent, nil, sigBytes) {
+		return errors.New("ML-DSA-65 signature verification failed")
+	}
+
+	// Decode and validate claims
+	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return fmt.Errorf("failed to decode payload: %w", err)
+	}
+	var claims jwtClaims
+	if err := json.Unmarshal(payloadBytes, &claims); err != nil {
+		return fmt.Errorf("failed to parse claims: %w", err)
+	}
+
+	// Check expiration
+	if int64(claims.Exp) < time.Now().Unix() {
+		return errors.New("token expired")
+	}
+
+	return nil
 }

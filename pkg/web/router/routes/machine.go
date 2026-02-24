@@ -134,14 +134,13 @@ func updateMachineKey(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		parsed, err := pqc.ParsePublicKeyPEM(fileBytes)
-		if err != nil {
+		if _, err := pqc.ValidatePublicKey(fileBytes); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		machineRepo := do.MustInvoke[repository.MachineRepository](i)
-		if err := machineRepo.UpdateMachineKeys(machine.ID, parsed.SigningKey, parsed.EncapsulationKey); err != nil {
-			log.Err(err).Msg("error updating machine keys")
+		if err := machineRepo.UpdateMachinePublicKey(machine.ID, fileBytes); err != nil {
+			log.Err(err).Msg("error updating machine public key")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}

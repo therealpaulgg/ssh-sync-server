@@ -38,35 +38,48 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Detect the JWT algorithm (ES256 for hybrid, ES512 for legacy)
+			// Detect the JWT algorithm to determine verification path
 			alg, err := pqc.DetectJWTAlgorithm(tokenString)
 			if err != nil {
 				log.Debug().Msg(fmt.Sprintf("Error detecting JWT algorithm: %s", err))
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			if alg != "ES256" && alg != "ES512" {
+
+			// Extract claims - use jwx for classic JWTs, manual extraction for PQ
+			var username, machine string
+			switch alg {
+			case "ES256", "ES512":
+				token, err := jwt.ParseString(tokenString, jwt.WithVerify(false))
+				if err != nil {
+					log.Debug().Msg(fmt.Sprintf("Error parsing JWT: %s", err))
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+				var ok bool
+				username, ok = token.PrivateClaims()["username"].(string)
+				if username == "" || !ok {
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+				machine, ok = token.PrivateClaims()["machine"].(string)
+				if machine == "" || !ok {
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+			case "MLDSA65":
+				username, machine, err = pqc.ExtractJWTClaims(tokenString)
+				if err != nil || username == "" || machine == "" {
+					log.Debug().Msg(fmt.Sprintf("Error extracting PQ JWT claims: %v", err))
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+			default:
 				log.Debug().Msg(fmt.Sprintf("Unsupported JWT algorithm: %s", alg))
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
 
-			token, err := jwt.ParseString(tokenString, jwt.WithVerify(false))
-			if err != nil {
-				log.Debug().Msg(fmt.Sprintf("Error parsing JWT: %s", err))
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-			username, ok := token.PrivateClaims()["username"].(string)
-			if username == "" || !ok {
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-			machine, ok := token.PrivateClaims()["machine"].(string)
-			if machine == "" || !ok {
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
 			userRepo := do.MustInvoke[repository.UserRepository](i)
 			user, err := userRepo.GetUserByUsername(username)
 			if err != nil {
@@ -81,17 +94,35 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			key, err := jwk.ParseKey(m.PublicKey, jwk.WithPEM(true))
-			if err != nil {
-				log.Error().Msg(err.Error())
-				w.WriteHeader(http.StatusInternalServerError)
-				return
+
+			// Verify the JWT signature based on algorithm
+			switch alg {
+			case "ES256", "ES512":
+				key, err := jwk.ParseKey(m.PublicKey, jwk.WithPEM(true))
+				if err != nil {
+					log.Error().Msg(err.Error())
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				if _, err := jwt.ParseRequest(r, jwt.WithKey(jwa.SignatureAlgorithm(alg), key)); err != nil {
+					log.Debug().Msg(fmt.Sprintf("Error verifying JWT: %s", err))
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+			case "MLDSA65":
+				pubKey, err := pqc.ParseMLDSA65PublicKey(m.PublicKey)
+				if err != nil {
+					log.Error().Msg(fmt.Sprintf("Error parsing ML-DSA-65 key: %s", err))
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				if err := pqc.VerifyMLDSA65JWT(tokenString, pubKey); err != nil {
+					log.Debug().Msg(fmt.Sprintf("ML-DSA-65 JWT verification failed: %s", err))
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
 			}
-			if _, err := jwt.ParseRequest(r, jwt.WithKey(jwa.SignatureAlgorithm(alg), key)); err != nil {
-				log.Debug().Msg(fmt.Sprintf("Error verifying JWT: %s", err))
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
+
 			ctx := context.WithValue(r.Context(), context_keys.UserContextKey, user)
 			ctx = context.WithValue(ctx, context_keys.MachineContextKey, m)
 			next.ServeHTTP(w, r.WithContext(ctx))

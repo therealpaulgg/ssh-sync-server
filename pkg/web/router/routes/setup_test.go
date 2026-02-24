@@ -78,13 +78,17 @@ func TestInitialSetup(t *testing.T) {
 	}
 }
 
-func TestInitialSetup_Hybrid(t *testing.T) {
-	// Arrange — two-block PEM (EC public key + ML-KEM-768 encapsulation key)
+func TestInitialSetup_MLDSA65(t *testing.T) {
+	// Arrange
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 	_ = writer.WriteField("username", "test")
 	_ = writer.WriteField("machine_name", "mymachine")
-	combinedPEM, _, _, err := testutils.GenerateHybridKeyPEM()
+	pub, _, err := testutils.GenerateMLDSA65TestKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pubPEM, err := testutils.EncodeMLDSA65ToPem(pub)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +96,7 @@ func TestInitialSetup_Hybrid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = part.Write(combinedPEM)
+	_, err = part.Write(pubPEM)
 	if err != nil {
 		t.Fatal(err)
 	}
