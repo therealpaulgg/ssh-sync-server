@@ -97,16 +97,19 @@ func EncodeMLDSAToPem(pub *mldsa.PublicKey) ([]byte, error) {
 func GenerateMLDSATestToken(username, machine string, priv *mldsa.PrivateKey) (string, error) {
 	header := `{"alg":"MLDSA","typ":"JWT"}`
 	now := time.Now()
-	claims := fmt.Sprintf(
-		`{"iss":"github.com/therealpaulgg/ssh-sync","iat":%d,"exp":%d,"username":"%s","machine":"%s"}`,
-		now.Add(-1*time.Minute).Unix(),
-		now.Add(2*time.Minute).Unix(),
-		username,
-		machine,
-	)
+	claims, err := json.Marshal(map[string]interface{}{
+		"iss":      "github.com/therealpaulgg/ssh-sync",
+		"iat":      now.Add(-1 * time.Minute).Unix(),
+		"exp":      now.Add(2 * time.Minute).Unix(),
+		"username": username,
+		"machine":  machine,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal JWT claims: %w", err)
+	}
 
 	h := base64.RawURLEncoding.EncodeToString([]byte(header))
-	c := base64.RawURLEncoding.EncodeToString([]byte(claims))
+	c := base64.RawURLEncoding.EncodeToString(claims)
 	signingInput := h + "." + c
 
 	sig, err := priv.Sign(nil, []byte(signingInput), nil)
@@ -117,7 +120,7 @@ func GenerateMLDSATestToken(username, machine string, priv *mldsa.PrivateKey) (s
 	return signingInput + "." + s, nil
 }
 
-// GenerateExpiredMLDSATestToken creates an expired ML-DSA- JWT for testing.
+// GenerateExpiredMLDSATestToken creates an expired ML-DSA JWT for testing.
 func GenerateExpiredMLDSATestToken(username, machine string, priv *mldsa.PrivateKey) (string, error) {
 	header := `{"alg":"MLDSA","typ":"JWT"}`
 	past := time.Now().Add(-10 * time.Minute)

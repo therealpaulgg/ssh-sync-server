@@ -23,7 +23,7 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 		var userDto dto.UserDto
 		err := r.ParseMultipartForm(32 << 20)
 		if err != nil {
-			log.Debug().Err(err)
+			log.Debug().Err(err).Msg("failed to parse multipart form")
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -46,6 +46,7 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		defer file.Close()
 		fileBytes, err := io.ReadAll(file)
 		if err != nil {
 			log.Err(err).Msg("error reading file")
@@ -54,7 +55,7 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 		}
 		// validate that it is a supported public key (ECDSA or ML-DSA-65)
 		if _, err := pqc.ValidatePublicKey(fileBytes); err != nil {
-			log.Debug().Err(err)
+			log.Debug().Err(err).Msg("invalid public key")
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}

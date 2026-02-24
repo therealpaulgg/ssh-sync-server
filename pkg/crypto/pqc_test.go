@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -195,7 +196,8 @@ func TestVerifyMLDSAJWT_TamperedPayload(t *testing.T) {
 	token := signMLDSAJWT(t, priv, "user1", "machine1", time.Now().Add(5*time.Minute))
 
 	// Tamper with payload: replace the payload segment
-	parts := splitToken(token)
+	parts := strings.SplitN(token, ".", 3)
+	require.Len(t, parts, 3)
 	parts[1] = base64.RawURLEncoding.EncodeToString([]byte(`{"username":"evil","machine":"bad","exp":9999999999}`))
 	tampered := parts[0] + "." + parts[1] + "." + parts[2]
 
@@ -203,15 +205,3 @@ func TestVerifyMLDSAJWT_TamperedPayload(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func splitToken(token string) [3]string {
-	var parts [3]string
-	i := 0
-	for idx, ch := range token {
-		if ch == '.' {
-			i++
-			continue
-		}
-		parts[i] += string(token[idx : idx+1])
-	}
-	return parts
-}

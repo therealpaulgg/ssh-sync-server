@@ -128,6 +128,7 @@ func updateMachineKey(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		defer file.Close()
 		fileBytes, err := io.ReadAll(file)
 		if err != nil {
 			log.Err(err).Msg("error reading key file")

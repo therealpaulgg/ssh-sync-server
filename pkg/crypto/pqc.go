@@ -109,7 +109,7 @@ type jwtClaims struct {
 
 // ExtractJWTClaims manually extracts username and machine claims from a JWT
 // without verification. This is used as a fallback when lestrrat-go/jwx
-// cannot parse the token (e.g., unrecognized algorithm like MLDSA65).
+// cannot parse the token (e.g., unrecognized algorithm like MLDSA).
 func ExtractJWTClaims(tokenString string) (username, machine string, err error) {
 	parts := strings.SplitN(tokenString, ".", 3)
 	if len(parts) != 3 {
@@ -158,7 +158,7 @@ func VerifyMLDSAJWT(tokenString string, pubKey *mldsa.PublicKey) error {
 	}
 
 	// Check expiration
-	if int64(claims.Exp) < time.Now().Unix() {
+	if int64(claims.Exp) <= time.Now().Unix() {
 		return errors.New("token expired")
 	}
 
