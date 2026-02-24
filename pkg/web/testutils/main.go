@@ -13,7 +13,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
+	"filippo.io/mldsa"
 	"github.com/google/uuid"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware/context_keys"
@@ -76,30 +76,26 @@ func EncodeToPem(privKey *ecdsa.PrivateKey, pubKey *ecdsa.PublicKey) ([]byte, []
 	return pubBytes, privBytes, nil
 }
 
-// GenerateMLDSA65TestKeys generates an ML-DSA-65 keypair via CIRCL.
-func GenerateMLDSA65TestKeys() (*mldsa65.PublicKey, *mldsa65.PrivateKey, error) {
-	pub, priv, err := mldsa65.GenerateKey(rand.Reader)
+// GenerateMLDSATestKeys generates an ML-DSA keypair.
+func GenerateMLDSATestKeys() (*mldsa.PublicKey, *mldsa.PrivateKey, error) {
+	priv, err := mldsa.GenerateKey(mldsa.MLDSA65())
 	if err != nil {
 		return nil, nil, err
 	}
-	return pub, priv, nil
+	return priv.PublicKey(), priv, nil
 }
 
-// EncodeMLDSA65ToPem PEM-encodes an ML-DSA-65 public key.
-func EncodeMLDSA65ToPem(pub *mldsa65.PublicKey) ([]byte, error) {
-	pubBytes, err := pub.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
+// EncodeMLDSAToPem PEM-encodes an ML-DSA public key.
+func EncodeMLDSAToPem(pub *mldsa.PublicKey) ([]byte, error) {
 	return pem.EncodeToMemory(&pem.Block{
-		Type:  "MLDSA65 PUBLIC KEY",
-		Bytes: pubBytes,
+		Type:  "MLDSA PUBLIC KEY",
+		Bytes: pub.Bytes(),
 	}), nil
 }
 
-// GenerateMLDSA65TestToken creates and signs a JWT with ML-DSA-65 for testing.
-func GenerateMLDSA65TestToken(username, machine string, priv *mldsa65.PrivateKey) (string, error) {
-	header := `{"alg":"MLDSA65","typ":"JWT"}`
+// GenerateMLDSATestToken creates and signs a JWT with ML-DSA for testing.
+func GenerateMLDSATestToken(username, machine string, priv *mldsa.PrivateKey) (string, error) {
+	header := `{"alg":"MLDSA","typ":"JWT"}`
 	now := time.Now()
 	claims := fmt.Sprintf(
 		`{"iss":"github.com/therealpaulgg/ssh-sync","iat":%d,"exp":%d,"username":"%s","machine":"%s"}`,
@@ -121,9 +117,9 @@ func GenerateMLDSA65TestToken(username, machine string, priv *mldsa65.PrivateKey
 	return signingInput + "." + s, nil
 }
 
-// GenerateExpiredMLDSA65TestToken creates an expired ML-DSA-65 JWT for testing.
-func GenerateExpiredMLDSA65TestToken(username, machine string, priv *mldsa65.PrivateKey) (string, error) {
-	header := `{"alg":"MLDSA65","typ":"JWT"}`
+// GenerateExpiredMLDSATestToken creates an expired ML-DSA- JWT for testing.
+func GenerateExpiredMLDSATestToken(username, machine string, priv *mldsa.PrivateKey) (string, error) {
+	header := `{"alg":"MLDSA","typ":"JWT"}`
 	past := time.Now().Add(-10 * time.Minute)
 	claims, err := json.Marshal(map[string]interface{}{
 		"iss":      "github.com/therealpaulgg/ssh-sync",

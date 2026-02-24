@@ -67,7 +67,7 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 					w.WriteHeader(http.StatusUnauthorized)
 					return
 				}
-			case "MLDSA65":
+			case "MLDSA":
 				username, machine, err = pqc.ExtractJWTClaims(tokenString)
 				if err != nil || username == "" || machine == "" {
 					log.Debug().Msg(fmt.Sprintf("Error extracting PQ JWT claims: %v", err))
@@ -109,15 +109,15 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 					w.WriteHeader(http.StatusUnauthorized)
 					return
 				}
-			case "MLDSA65":
-				pubKey, err := pqc.ParseMLDSA65PublicKey(m.PublicKey)
+			case "MLDSA":
+				pubKey, err := pqc.ParseMLDSAPublicKey(m.PublicKey)
 				if err != nil {
-					log.Error().Msg(fmt.Sprintf("Error parsing ML-DSA-65 key: %s", err))
+					log.Error().Msg(fmt.Sprintf("Error parsing ML-DSA key: %s", err))
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
-				if err := pqc.VerifyMLDSA65JWT(tokenString, pubKey); err != nil {
-					log.Debug().Msg(fmt.Sprintf("ML-DSA-65 JWT verification failed: %s", err))
+				if err := pqc.VerifyMLDSAJWT(tokenString, pubKey); err != nil {
+					log.Debug().Msg(fmt.Sprintf("ML-DSA JWT verification failed: %s", err))
 					w.WriteHeader(http.StatusUnauthorized)
 					return
 				}

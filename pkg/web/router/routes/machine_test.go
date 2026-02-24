@@ -151,11 +151,11 @@ func TestDeleteMachine(t *testing.T) {
 
 func TestUpdateMachineKey(t *testing.T) {
 	// Arrange
-	pub, _, err := testutils.GenerateMLDSA65TestKeys()
+	pub, _, err := testutils.GenerateMLDSATestKeys()
 	if err != nil {
 		t.Fatal(err)
 	}
-	pubPEM, err := testutils.EncodeMLDSA65ToPem(pub)
+	pubPEM, err := testutils.EncodeMLDSAToPem(pub)
 	if err != nil {
 		t.Fatal(err)
 	}

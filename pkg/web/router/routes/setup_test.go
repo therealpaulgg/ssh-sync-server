@@ -78,17 +78,17 @@ func TestInitialSetup(t *testing.T) {
 	}
 }
 
-func TestInitialSetup_MLDSA65(t *testing.T) {
+func TestInitialSetup_MLDSA(t *testing.T) {
 	// Arrange
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 	_ = writer.WriteField("username", "test")
 	_ = writer.WriteField("machine_name", "mymachine")
-	pub, _, err := testutils.GenerateMLDSA65TestKeys()
+	pub, _, err := testutils.GenerateMLDSATestKeys()
 	if err != nil {
 		t.Fatal(err)
 	}
-	pubPEM, err := testutils.EncodeMLDSA65ToPem(pub)
+	pubPEM, err := testutils.EncodeMLDSAToPem(pub)
 	if err != nil {
 		t.Fatal(err)
 	}

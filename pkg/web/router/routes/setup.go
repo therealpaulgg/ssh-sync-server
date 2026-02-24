@@ -2,7 +2,7 @@ package routes
 
 import (
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/go-chi/chi"
@@ -23,26 +23,30 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 		var userDto dto.UserDto
 		err := r.ParseMultipartForm(32 << 20)
 		if err != nil {
+			log.Debug().Err(err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		username := r.FormValue("username")
 		if username == "" {
+			log.Debug().Msg("Missing username")
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		userDto.Username = username
 		machineName := r.FormValue("machine_name")
 		if machineName == "" {
+			log.Debug().Msg("Missing machine name")
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		file, _, err := r.FormFile("key")
 		if err != nil {
+			log.Debug().Msg("Missing key")
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		fileBytes, err := ioutil.ReadAll(file)
+		fileBytes, err := io.ReadAll(file)
 		if err != nil {
 			log.Err(err).Msg("error reading file")
 			w.WriteHeader(http.StatusInternalServerError)
@@ -50,6 +54,7 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 		}
 		// validate that it is a supported public key (ECDSA or ML-DSA-65)
 		if _, err := pqc.ValidatePublicKey(fileBytes); err != nil {
+			log.Debug().Err(err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}

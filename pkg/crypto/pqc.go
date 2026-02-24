@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
+	"filippo.io/mldsa"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 )
@@ -20,7 +20,7 @@ type KeyType int
 const (
 	KeyTypeUnknown KeyType = iota
 	KeyTypeECDSA
-	KeyTypeMLDSA65
+	KeyTypeMLDSA
 )
 
 // DetectKeyType inspects the PEM block type to determine the key algorithm.
@@ -32,25 +32,25 @@ func DetectKeyType(pemBytes []byte) KeyType {
 	switch block.Type {
 	case "PUBLIC KEY":
 		return KeyTypeECDSA
-	case "MLDSA65 PUBLIC KEY":
-		return KeyTypeMLDSA65
+	case "MLDSA PUBLIC KEY":
+		return KeyTypeMLDSA
 	default:
 		return KeyTypeUnknown
 	}
 }
 
-// ParseMLDSA65PublicKey extracts an ML-DSA-65 public key from PEM-encoded bytes.
-func ParseMLDSA65PublicKey(pemBytes []byte) (*mldsa65.PublicKey, error) {
+// ParseMLDSAPublicKey extracts an ML-DSA public key from PEM-encoded bytes.
+func ParseMLDSAPublicKey(pemBytes []byte) (*mldsa.PublicKey, error) {
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
 		return nil, errors.New("failed to decode PEM block")
 	}
-	if block.Type != "MLDSA65 PUBLIC KEY" {
+	if block.Type != "MLDSA PUBLIC KEY" {
 		return nil, fmt.Errorf("unexpected PEM block type: %s", block.Type)
 	}
-	pk := new(mldsa65.PublicKey)
-	if err := pk.UnmarshalBinary(block.Bytes); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal ML-DSA-65 public key: %w", err)
+	pk, err := mldsa.NewPublicKey(mldsa.MLDSA65(), block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse ML-DSA public key: %w", err)
 	}
 	return pk, nil
 }
@@ -69,11 +69,11 @@ func ValidatePublicKey(pemBytes []byte) (KeyType, error) {
 			return KeyTypeUnknown, errors.New("key is not EC type")
 		}
 		return KeyTypeECDSA, nil
-	case KeyTypeMLDSA65:
-		if _, err := ParseMLDSA65PublicKey(pemBytes); err != nil {
+	case KeyTypeMLDSA:
+		if _, err := ParseMLDSAPublicKey(pemBytes); err != nil {
 			return KeyTypeUnknown, err
 		}
-		return KeyTypeMLDSA65, nil
+		return KeyTypeMLDSA, nil
 	default:
 		return KeyTypeUnknown, errors.New("unsupported key type")
 	}
@@ -126,8 +126,8 @@ func ExtractJWTClaims(tokenString string) (username, machine string, err error) 
 	return claims.Username, claims.Machine, nil
 }
 
-// VerifyMLDSA65JWT verifies a JWT signed with ML-DSA-65 and checks expiration.
-func VerifyMLDSA65JWT(tokenString string, pubKey *mldsa65.PublicKey) error {
+// VerifyMLDSAJWT verifies a JWT signed with ML-DSA and checks expiration.
+func VerifyMLDSAJWT(tokenString string, pubKey *mldsa.PublicKey) error {
 	parts := strings.SplitN(tokenString, ".", 3)
 	if len(parts) != 3 {
 		return errors.New("invalid JWT format")
@@ -142,9 +142,9 @@ func VerifyMLDSA65JWT(tokenString string, pubKey *mldsa65.PublicKey) error {
 		return fmt.Errorf("failed to decode signature: %w", err)
 	}
 
-	// Verify signature using CIRCL
-	if !mldsa65.Verify(pubKey, signedContent, nil, sigBytes) {
-		return errors.New("ML-DSA-65 signature verification failed")
+	// Verify signature
+	if err := mldsa.Verify(pubKey, signedContent, sigBytes, nil); err != nil {
+		return errors.New("ML-DSA signature verification failed")
 	}
 
 	// Decode and validate claims

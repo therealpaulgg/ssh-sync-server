@@ -334,24 +334,24 @@ func TestConfigureAuthFakeToken(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
-func TestConfigureAuth_MLDSA65(t *testing.T) {
+func TestConfigureAuth_MLDSA(t *testing.T) {
 	// Arrange
 	i := do.New()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pub, priv, err := testutils.GenerateMLDSA65TestKeys()
+	pub, priv, err := testutils.GenerateMLDSATestKeys()
 	if err != nil {
 		t.Fatal(err)
 	}
-	pubPEM, err := testutils.EncodeMLDSA65ToPem(pub)
+	pubPEM, err := testutils.EncodeMLDSAToPem(pub)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	user := &models.User{ID: uuid.New(), Username: "testuser"}
 	machine := &models.Machine{ID: uuid.New(), Name: "testmachine", UserID: user.ID, PublicKey: pubPEM}
-	token, err := testutils.GenerateMLDSA65TestToken(user.Username, machine.Name, priv)
+	token, err := testutils.GenerateMLDSATestToken(user.Username, machine.Name, priv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -385,31 +385,31 @@ func TestConfigureAuth_MLDSA65(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
-func TestConfigureAuth_MLDSA65_WrongKey(t *testing.T) {
+func TestConfigureAuth_MLDSA_WrongKey(t *testing.T) {
 	// Arrange
 	i := do.New()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	// Generate two different keypairs
-	pub1, _, err := testutils.GenerateMLDSA65TestKeys()
+	pub1, _, err := testutils.GenerateMLDSATestKeys()
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, priv2, err := testutils.GenerateMLDSA65TestKeys()
+	_, priv2, err := testutils.GenerateMLDSATestKeys()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Store pub1 but sign with priv2
-	pubPEM, err := testutils.EncodeMLDSA65ToPem(pub1)
+	pubPEM, err := testutils.EncodeMLDSAToPem(pub1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	user := &models.User{ID: uuid.New(), Username: "testuser"}
 	machine := &models.Machine{ID: uuid.New(), Name: "testmachine", UserID: user.ID, PublicKey: pubPEM}
-	token, err := testutils.GenerateMLDSA65TestToken(user.Username, machine.Name, priv2)
+	token, err := testutils.GenerateMLDSATestToken(user.Username, machine.Name, priv2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -443,24 +443,24 @@ func TestConfigureAuth_MLDSA65_WrongKey(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
-func TestConfigureAuth_MLDSA65_Expired(t *testing.T) {
+func TestConfigureAuth_MLDSA_Expired(t *testing.T) {
 	// Arrange
 	i := do.New()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pub, priv, err := testutils.GenerateMLDSA65TestKeys()
+	pub, priv, err := testutils.GenerateMLDSATestKeys()
 	if err != nil {
 		t.Fatal(err)
 	}
-	pubPEM, err := testutils.EncodeMLDSA65ToPem(pub)
+	pubPEM, err := testutils.EncodeMLDSAToPem(pub)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	user := &models.User{ID: uuid.New(), Username: "testuser"}
 	machine := &models.Machine{ID: uuid.New(), Name: "testmachine", UserID: user.ID, PublicKey: pubPEM}
-	token, err := testutils.GenerateExpiredMLDSA65TestToken(user.Username, machine.Name, priv)
+	token, err := testutils.GenerateExpiredMLDSATestToken(user.Username, machine.Name, priv)
 	if err != nil {
 		t.Fatal(err)
 	}
