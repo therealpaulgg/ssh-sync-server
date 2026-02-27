@@ -38,7 +38,6 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Detect the JWT algorithm to determine verification path
 			alg, err := pqc.DetectJWTAlgorithm(tokenString)
 			if err != nil {
 				log.Debug().Msg(fmt.Sprintf("Error detecting JWT algorithm: %s", err))
@@ -46,7 +45,6 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Extract claims - use jwx for classic JWTs, manual extraction for PQ
 			var username, machine string
 			switch alg {
 			case "ES256", "ES512":
@@ -95,7 +93,6 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Verify the JWT signature based on algorithm
 			switch alg {
 			case "ES256", "ES512":
 				key, err := jwk.ParseKey(m.PublicKey, jwk.WithPEM(true))

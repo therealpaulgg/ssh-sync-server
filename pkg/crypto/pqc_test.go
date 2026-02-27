@@ -51,8 +51,6 @@ func signMLDSAJWT(t *testing.T, priv *mldsa.PrivateKey, username, machine string
 	return signingInput + "." + s
 }
 
-// --- DetectKeyType ---
-
 func TestDetectKeyType_ECDSA(t *testing.T) {
 	pemBytes := generateECDSAPEM(t)
 	assert.Equal(t, KeyTypeECDSA, DetectKeyType(pemBytes))
@@ -71,8 +69,6 @@ func TestDetectKeyType_UnknownBlockType(t *testing.T) {
 	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "SOMETHING ELSE", Bytes: []byte{1, 2, 3}})
 	assert.Equal(t, KeyTypeUnknown, DetectKeyType(pemBytes))
 }
-
-// --- ParseMLDSAPublicKey ---
 
 func TestParseMLDSAPublicKey_Valid(t *testing.T) {
 	pemBytes, _, _ := generateMLDSAPEM(t)
@@ -94,8 +90,6 @@ func TestParseMLDSAPublicKey_InvalidData(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// --- ValidatePublicKey ---
-
 func TestValidatePublicKey_ECDSA(t *testing.T) {
 	pemBytes := generateECDSAPEM(t)
 	kt, err := ValidatePublicKey(pemBytes)
@@ -114,8 +108,6 @@ func TestValidatePublicKey_Invalid(t *testing.T) {
 	_, err := ValidatePublicKey([]byte("garbage"))
 	assert.Error(t, err)
 }
-
-// --- DetectJWTAlgorithm ---
 
 func TestDetectJWTAlgorithm_ES512(t *testing.T) {
 	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"ES512","typ":"JWT"}`))
@@ -144,8 +136,6 @@ func TestDetectJWTAlgorithm_InvalidFormat(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// --- ExtractJWTClaims ---
-
 func TestExtractJWTClaims(t *testing.T) {
 	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"MLDSA"}`))
 	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"username":"alice","machine":"laptop"}`))
@@ -162,8 +152,6 @@ func TestExtractJWTClaims_InvalidFormat(t *testing.T) {
 	_, _, err := ExtractJWTClaims("not-a-jwt")
 	assert.Error(t, err)
 }
-
-// --- VerifyMLDSAJWT ---
 
 func TestVerifyMLDSAJWT_Valid(t *testing.T) {
 	_, pub, priv := generateMLDSAPEM(t)
@@ -184,7 +172,6 @@ func TestVerifyMLDSAJWT_BadSignature(t *testing.T) {
 	_, _, priv := generateMLDSAPEM(t)
 	token := signMLDSAJWT(t, priv, "user1", "machine1", time.Now().Add(5*time.Minute))
 
-	// Use a different key to verify
 	priv2, _ := mldsa.GenerateKey(mldsa.MLDSA65())
 	err := VerifyMLDSAJWT(token, priv2.PublicKey())
 	assert.Error(t, err)
@@ -195,7 +182,6 @@ func TestVerifyMLDSAJWT_TamperedPayload(t *testing.T) {
 	_, pub, priv := generateMLDSAPEM(t)
 	token := signMLDSAJWT(t, priv, "user1", "machine1", time.Now().Add(5*time.Minute))
 
-	// Tamper with payload: replace the payload segment
 	parts := strings.SplitN(token, ".", 3)
 	require.Len(t, parts, 3)
 	parts[1] = base64.RawURLEncoding.EncodeToString([]byte(`{"username":"evil","machine":"bad","exp":9999999999}`))

@@ -14,7 +14,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
-// KeyType represents the cryptographic algorithm family of a public key.
 type KeyType int
 
 const (
@@ -23,7 +22,6 @@ const (
 	KeyTypeMLDSA
 )
 
-// DetectKeyType inspects the PEM block type to determine the key algorithm.
 func DetectKeyType(pemBytes []byte) KeyType {
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
@@ -39,7 +37,6 @@ func DetectKeyType(pemBytes []byte) KeyType {
 	}
 }
 
-// ParseMLDSAPublicKey extracts an ML-DSA public key from PEM-encoded bytes.
 func ParseMLDSAPublicKey(pemBytes []byte) (*mldsa.PublicKey, error) {
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
@@ -55,8 +52,6 @@ func ParseMLDSAPublicKey(pemBytes []byte) (*mldsa.PublicKey, error) {
 	return pk, nil
 }
 
-// ValidatePublicKey validates that the given PEM bytes contain a supported public key.
-// Returns the detected KeyType on success.
 func ValidatePublicKey(pemBytes []byte) (KeyType, error) {
 	kt := DetectKeyType(pemBytes)
 	switch kt {
@@ -84,7 +79,6 @@ type jwtHeader struct {
 	Typ string `json:"typ"`
 }
 
-// DetectJWTAlgorithm reads the JWT header to determine the signing algorithm.
 func DetectJWTAlgorithm(tokenString string) (string, error) {
 	parts := strings.SplitN(tokenString, ".", 3)
 	if len(parts) != 3 {
@@ -107,9 +101,6 @@ type jwtClaims struct {
 	Exp      float64 `json:"exp"`
 }
 
-// ExtractJWTClaims manually extracts username and machine claims from a JWT
-// without verification. This is used as a fallback when lestrrat-go/jwx
-// cannot parse the token (e.g., unrecognized algorithm like MLDSA).
 func ExtractJWTClaims(tokenString string) (username, machine string, err error) {
 	parts := strings.SplitN(tokenString, ".", 3)
 	if len(parts) != 3 {
@@ -126,28 +117,23 @@ func ExtractJWTClaims(tokenString string) (username, machine string, err error) 
 	return claims.Username, claims.Machine, nil
 }
 
-// VerifyMLDSAJWT verifies a JWT signed with ML-DSA and checks expiration.
 func VerifyMLDSAJWT(tokenString string, pubKey *mldsa.PublicKey) error {
 	parts := strings.SplitN(tokenString, ".", 3)
 	if len(parts) != 3 {
 		return errors.New("invalid JWT format")
 	}
 
-	// The signed content is the raw "header.payload" string (not decoded)
 	signedContent := []byte(parts[0] + "." + parts[1])
 
-	// Decode signature
 	sigBytes, err := base64.RawURLEncoding.DecodeString(parts[2])
 	if err != nil {
 		return fmt.Errorf("failed to decode signature: %w", err)
 	}
 
-	// Verify signature
 	if err := mldsa.Verify(pubKey, signedContent, sigBytes, nil); err != nil {
 		return errors.New("ML-DSA signature verification failed")
 	}
 
-	// Decode and validate claims
 	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
 		return fmt.Errorf("failed to decode payload: %w", err)
@@ -157,7 +143,6 @@ func VerifyMLDSAJWT(tokenString string, pubKey *mldsa.PublicKey) error {
 		return fmt.Errorf("failed to parse claims: %w", err)
 	}
 
-	// Check expiration
 	if int64(claims.Exp) <= time.Now().Unix() {
 		return errors.New("token expired")
 	}
