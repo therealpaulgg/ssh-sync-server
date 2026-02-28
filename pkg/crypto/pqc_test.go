@@ -28,7 +28,12 @@ func generateECDSAPEM(t *testing.T) []byte {
 
 func generateMLDSAPEM(t *testing.T) ([]byte, *mldsa.PublicKey, *mldsa.PrivateKey) {
 	t.Helper()
-	priv, err := mldsa.GenerateKey(mldsa.MLDSA65())
+	return generateMLDSAPEMWithParams(t, mldsa.MLDSA65())
+}
+
+func generateMLDSAPEMWithParams(t *testing.T, params *mldsa.Parameters) ([]byte, *mldsa.PublicKey, *mldsa.PrivateKey) {
+	t.Helper()
+	priv, err := mldsa.GenerateKey(params)
 	require.NoError(t, err)
 	pub := priv.PublicKey()
 	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "MLDSA PUBLIC KEY", Bytes: pub.Bytes()})
@@ -102,6 +107,27 @@ func TestValidatePublicKey_MLDSA(t *testing.T) {
 	kt, err := ValidatePublicKey(pemBytes)
 	require.NoError(t, err)
 	assert.Equal(t, KeyTypeMLDSA, kt)
+}
+
+func TestValidatePublicKey_MLDSA44(t *testing.T) {
+	pemBytes, _, _ := generateMLDSAPEMWithParams(t, mldsa.MLDSA44())
+	kt, err := ValidatePublicKey(pemBytes)
+	require.NoError(t, err)
+	assert.Equal(t, KeyTypeMLDSA, kt)
+}
+
+func TestValidatePublicKey_MLDSA87(t *testing.T) {
+	pemBytes, _, _ := generateMLDSAPEMWithParams(t, mldsa.MLDSA87())
+	kt, err := ValidatePublicKey(pemBytes)
+	require.NoError(t, err)
+	assert.Equal(t, KeyTypeMLDSA, kt)
+}
+
+func TestValidatePublicKey_MLDSA_UnrecognizedSize(t *testing.T) {
+	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "MLDSA PUBLIC KEY", Bytes: make([]byte, 42)})
+	_, err := ValidatePublicKey(pemBytes)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unrecognized key size")
 }
 
 func TestValidatePublicKey_Invalid(t *testing.T) {

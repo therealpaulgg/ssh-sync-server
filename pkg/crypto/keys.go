@@ -46,13 +46,20 @@ func ValidatePublicKey(pemBytes []byte) (KeyType, error) {
 		}
 		return KeyTypeECDSA, nil
 	case KeyTypeMLDSA:
-		for _, algStr := range []string{mldsa.MLDSA44().String(), mldsa.MLDSA65().String(), mldsa.MLDSA87().String()} {
-			alg, _ := MLDSAAlgorithmFromString(algStr)
-			if _, err := ParseMLDSAPublicKey(pemBytes, alg); err == nil {
-				return KeyTypeMLDSA, nil
-			}
+		block, _ := pem.Decode(pemBytes)
+		algBySize := map[int]*mldsa.Parameters{
+			mldsa.MLDSA44().PublicKeySize(): mldsa.MLDSA44(),
+			mldsa.MLDSA65().PublicKeySize(): mldsa.MLDSA65(),
+			mldsa.MLDSA87().PublicKeySize(): mldsa.MLDSA87(),
 		}
-		return KeyTypeUnknown, errors.New("invalid ML-DSA public key")
+		alg, ok := algBySize[len(block.Bytes)]
+		if !ok {
+			return KeyTypeUnknown, errors.New("invalid ML-DSA public key: unrecognized key size")
+		}
+		if _, err := ParseMLDSAPublicKey(pemBytes, alg); err != nil {
+			return KeyTypeUnknown, fmt.Errorf("invalid ML-DSA public key: %w", err)
+		}
+		return KeyTypeMLDSA, nil
 	default:
 		return KeyTypeUnknown, errors.New("unsupported key type")
 	}
