@@ -1,8 +1,6 @@
 module github.com/therealpaulgg/ssh-sync-server
 
-go 1.23.0
-
-toolchain go1.24.7
+go 1.26.0
 
 require (
 	github.com/go-chi/chi v1.5.4
@@ -15,9 +13,9 @@ require (
 	github.com/georgysavva/scany/v2 v2.0.0
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
-	github.com/gobwas/ws v1.1.0
+	github.com/gobwas/ws v1.4.0
 	github.com/goccy/go-json v0.10.2 // indirect
-	github.com/google/uuid v1.3.0
+	github.com/google/uuid v1.6.0
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
 	github.com/jackc/pgx/v5 v5.5.4
@@ -34,7 +32,6 @@ require (
 	github.com/samber/do v1.5.1
 	github.com/samber/lo v1.37.0
 	github.com/sethvargo/go-diceware v0.3.0
-	github.com/therealpaulgg/ssh-sync v1.2.2
 	golang.org/x/crypto v0.35.0 // indirect
 	golang.org/x/exp v0.0.0-20230111222715-75897c7a292a // indirect
 	golang.org/x/sync v0.11.0 // indirect
@@ -47,29 +44,14 @@ require (
 )
 
 require (
-	github.com/atotto/clipboard v0.1.4 // indirect
-	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/charmbracelet/bubbles v0.20.0 // indirect
-	github.com/charmbracelet/bubbletea v1.1.0 // indirect
-	github.com/charmbracelet/lipgloss v0.13.1 // indirect
-	github.com/charmbracelet/x/ansi v0.3.2 // indirect
-	github.com/charmbracelet/x/term v0.2.0 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
+	filippo.io/mldsa v0.0.0-20260215214346-43d0283efc3e
+	github.com/therealpaulgg/ssh-sync-common v0.0.1
+)
+
+require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/kr/text v0.2.0 // indirect
-	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
-	github.com/mattn/go-localereader v0.0.1 // indirect
-	github.com/mattn/go-runewidth v0.0.16 // indirect
-	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
-	github.com/muesli/cancelreader v0.2.2 // indirect
-	github.com/muesli/termenv v0.15.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/sahilm/fuzzy v0.1.1 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
-	github.com/urfave/cli/v2 v2.23.7 // indirect
-	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

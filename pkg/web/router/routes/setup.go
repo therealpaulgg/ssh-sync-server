@@ -2,21 +2,20 @@ package routes
 
 import (
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/go-chi/chi"
 	"github.com/jackc/pgx/v5"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
+	"github.com/therealpaulgg/ssh-sync-common/pkg/dto"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/crypto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/live"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
-	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
 
 func initialSetup(i *do.Injector) http.HandlerFunc {
@@ -43,20 +42,14 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		fileBytes, err := ioutil.ReadAll(file)
+		defer file.Close()
+		fileBytes, err := io.ReadAll(file)
 		if err != nil {
-			log.Err(err).Msg("error reading file")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		// validate that it is in fact a public key
-		key, err := jwk.ParseKey(fileBytes, jwk.WithPEM(true))
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		keyType := key.KeyType()
-		if keyType != jwa.EC {
+		if _, err := crypto.ValidatePublicKey(fileBytes); err != nil {
+			log.Debug().Err(err).Msg("invalid public key")
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}

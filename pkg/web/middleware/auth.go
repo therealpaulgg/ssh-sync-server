@@ -1,21 +1,67 @@
 package middleware
 
 import (
-	"fmt"
-	"net/http"
-
-	"regexp"
-
 	"context"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"regexp"
+	"strings"
 
+	"filippo.io/mldsa"
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/crypto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware/context_keys"
 )
+
+type authClaims struct {
+	Username string `json:"username"`
+	Machine  string `json:"machine"`
+}
+
+func extractAuthClaims(tokenString, alg string) (username, machine string, err error) {
+	switch alg {
+	case jwa.ES256.String(), jwa.ES512.String():
+		token, err := jwt.ParseString(tokenString, jwt.WithVerify(false))
+		if err != nil {
+			return "", "", err
+		}
+		var ok bool
+		username, ok = token.PrivateClaims()["username"].(string)
+		if !ok || username == "" {
+			return "", "", errors.New("missing username claim")
+		}
+		machine, ok = token.PrivateClaims()["machine"].(string)
+		if !ok || machine == "" {
+			return "", "", errors.New("missing machine claim")
+		}
+	case mldsa.MLDSA44().String(), mldsa.MLDSA65().String(), mldsa.MLDSA87().String():
+		parts := strings.SplitN(tokenString, ".", 3)
+		if len(parts) != 3 {
+			return "", "", errors.New("invalid JWT format")
+		}
+		payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
+		if err != nil {
+			return "", "", err
+		}
+		var claims authClaims
+		if err := json.Unmarshal(payloadBytes, &claims); err != nil {
+			return "", "", err
+		}
+		username, machine = claims.Username, claims.Machine
+		if username == "" || machine == "" {
+			return "", "", errors.New("missing username or machine claim")
+		}
+	default:
+		return "", "", errors.New("unsupported algorithm")
+	}
+	return
+}
 
 func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -25,33 +71,26 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			re := regexp.MustCompile(`Bearer (.*)`)
-			submatches := re.FindStringSubmatch(authHeader)
-			if len(submatches) < 2 {
+			submatches := regexp.MustCompile(`Bearer (.*)`).FindStringSubmatch(authHeader)
+			if len(submatches) < 2 || submatches[1] == "" {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
 			tokenString := submatches[1]
-			if tokenString == "" {
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-			token, err := jwt.ParseString(tokenString, jwt.WithVerify(false))
+
+			alg, err := crypto.DetectJWTAlgorithm(tokenString)
 			if err != nil {
-				log.Debug().Msg(fmt.Sprintf("Error parsing JWT: %s", err))
+				log.Debug().Err(err).Msg("failed to detect JWT algorithm")
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			username, ok := token.PrivateClaims()["username"].(string)
-			if username == "" || !ok {
+			username, machine, err := extractAuthClaims(tokenString, alg)
+			if err != nil {
+				log.Debug().Err(err).Msg("failed to extract JWT claims")
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			machine, ok := token.PrivateClaims()["machine"].(string)
-			if machine == "" || !ok {
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
+
 			userRepo := do.MustInvoke[repository.UserRepository](i)
 			user, err := userRepo.GetUserByUsername(username)
 			if err != nil {
@@ -66,22 +105,16 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			key, err := jwk.ParseKey(m.PublicKey, jwk.WithPEM(true))
-			if err != nil {
-				log.Error().Msg(err.Error())
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			if _, err := jwt.ParseRequest(r, jwt.WithKey(jwa.ES512, key)); err != nil {
-				log.Debug().Msg(fmt.Sprintf("Error parsing JWT: %s", err))
+
+			if err := crypto.VerifyJWT(tokenString, alg, m.PublicKey); err != nil {
+				log.Debug().Err(err).Msg("JWT verification failed")
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
+
 			ctx := context.WithValue(r.Context(), context_keys.UserContextKey, user)
 			ctx = context.WithValue(ctx, context_keys.MachineContextKey, m)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
-
-// Auth middleware: parse a JWT signed with ES512 and verify it with the public key

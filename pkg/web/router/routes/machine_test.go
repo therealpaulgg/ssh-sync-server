@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,10 +14,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/do"
 	"github.com/stretchr/testify/assert"
+	"github.com/therealpaulgg/ssh-sync-common/pkg/dto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/testutils"
-	"github.com/therealpaulgg/ssh-sync/pkg/dto"
 )
 
 func TestGetMachine(t *testing.T) {
@@ -146,6 +147,112 @@ func TestDeleteMachine(t *testing.T) {
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	}
+}
+
+func TestUpdateMachineKey(t *testing.T) {
+	// Arrange
+	pub, _, err := testutils.GenerateMLDSATestKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pubPEM, err := testutils.EncodeMLDSAToPem(pub)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("key", "key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = part.Write(pubPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = writer.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req, err := http.NewRequest("PUT", "/key", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	user := testutils.GenerateUser()
+	machine := &models.Machine{
+		ID:        uuid.New(),
+		UserID:    user.ID,
+		Name:      "test",
+		PublicKey: []byte("old-key"),
+	}
+	req = testutils.AddUserContext(req, user)
+	req = testutils.AddMachineContext(req, machine)
+
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockMachineRepo := repository.NewMockMachineRepository(ctrl)
+	mockMachineRepo.EXPECT().UpdateMachinePublicKey(machine.ID, pubPEM).Return(nil)
+	do.Provide(injector, func(i *do.Injector) (repository.MachineRepository, error) {
+		return mockMachineRepo, nil
+	})
+
+	// Act
+	rr := httptest.NewRecorder()
+	router := chi.NewRouter()
+	router.Put("/key", updateMachineKey(injector))
+	router.ServeHTTP(rr, req)
+
+	// Assert
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestUpdateMachineKey_InvalidKey(t *testing.T) {
+	// Arrange
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("key", "key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = part.Write([]byte("not a valid key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = writer.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req, err := http.NewRequest("PUT", "/key", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	user := testutils.GenerateUser()
+	machine := &models.Machine{
+		ID:        uuid.New(),
+		UserID:    user.ID,
+		Name:      "test",
+		PublicKey: []byte("old-key"),
+	}
+	req = testutils.AddUserContext(req, user)
+	req = testutils.AddMachineContext(req, machine)
+
+	injector := do.New()
+
+	// Act
+	rr := httptest.NewRecorder()
+	router := chi.NewRouter()
+	router.Put("/key", updateMachineKey(injector))
+	router.ServeHTTP(rr, req)
+
+	// Assert
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
 // TODO non-happy-paths

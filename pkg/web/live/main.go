@@ -14,11 +14,12 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
 	"github.com/sethvargo/go-diceware/diceware"
+	"github.com/therealpaulgg/ssh-sync-common/pkg/dto"
+	"github.com/therealpaulgg/ssh-sync-common/pkg/wsutils"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/crypto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware/context_keys"
-	"github.com/therealpaulgg/ssh-sync/pkg/dto"
-	"github.com/therealpaulgg/ssh-sync/pkg/utils"
 )
 
 // Computer A creates a live connection.
@@ -37,7 +38,7 @@ type ChallengeResponse struct {
 type ChallengeSession struct {
 	Username          string
 	ChallengeAccepted chan bool
-	ChallengerChannel chan []byte
+	ChallengerChannel chan *dto.PublicKeyDto
 	ResponderChannel  chan []byte
 }
 
@@ -84,7 +85,7 @@ func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.Res
 		log.Warn().Msg("Could not get user from context")
 		return
 	}
-	foo, err := utils.ReadClientMessage[dto.ChallengeResponseDto](&conn)
+	foo, err := wsutils.ReadClientMessage[dto.ChallengeResponseDto](&conn)
 	if err != nil {
 		log.Err(err).Msg("Error reading client message")
 		return
@@ -92,7 +93,7 @@ func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.Res
 	chalChan, ok := ChallengeResponseDict.ReadChallenge(foo.Data.Challenge)
 	if !ok {
 		log.Warn().Msg("Could not find challenge in dict")
-		if err := utils.WriteServerError[dto.ChallengeSuccessEncryptedKeyDto](&conn, "Invalid challenge response."); err != nil {
+		if err := wsutils.WriteServerError[dto.ChallengeSuccessEncryptedKeyDto](&conn, "Invalid challenge response."); err != nil {
 			log.Err(err).Msg("Error writing server error")
 		}
 		return
@@ -108,19 +109,20 @@ func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.Res
 	key := <-chalChan.ChallengerChannel
 	if key == nil {
 		log.Debug().Msg("Response from challenger channel - key is nil. Exiting.")
-		if err := utils.WriteServerError[dto.ChallengeSuccessEncryptedKeyDto](&conn, "Error responding to challenge - client abruptly closed connection."); err != nil {
+		if err := wsutils.WriteServerError[dto.ChallengeSuccessEncryptedKeyDto](&conn, "Error responding to challenge - client abruptly closed connection."); err != nil {
 			log.Err(err).Msg("Error writing server error")
 		}
 		return
 	}
 	keys := dto.ChallengeSuccessEncryptedKeyDto{
-		PublicKey: key,
+		PublicKey:        key.PublicKey,
+		EncapsulationKey: key.EncapsulationKey,
 	}
-	if err := utils.WriteServerMessage(&conn, keys); err != nil {
+	if err := wsutils.WriteServerMessage(&conn, keys); err != nil {
 		log.Err(err).Msg("Error writing server message")
 		return
 	}
-	encMasterKeyDto, err := utils.ReadClientMessage[dto.EncryptedMasterKeyDto](&conn)
+	encMasterKeyDto, err := wsutils.ReadClientMessage[dto.EncryptedMasterKeyDto](&conn)
 	if err != nil {
 		log.Err(err).Msg("Error reading client message")
 		return
@@ -139,9 +141,9 @@ func NewMachineChallenge(i *do.Injector, r *http.Request, w http.ResponseWriter)
 
 func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.ResponseWriter, c *net.Conn) {
 	conn := *c
- defer conn.Close()
+	defer conn.Close()
 	// first message sent should be JSON payload
-	userMachine, err := utils.ReadClientMessage[dto.UserMachineDto](&conn)
+	userMachine, err := wsutils.ReadClientMessage[dto.UserMachineDto](&conn)
 	if err != nil {
 		log.Err(err).Msg("Error reading client message")
 		return
@@ -149,7 +151,7 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	userRepo := do.MustInvoke[repository.UserRepository](i)
 	user, err := userRepo.GetUserByUsername(userMachine.Data.Username)
 	if errors.Is(err, sql.ErrNoRows) || user == nil {
-		if err := utils.WriteServerError[dto.MessageDto](&conn, "User not found"); err != nil {
+		if err := wsutils.WriteServerError[dto.MessageDto](&conn, "User not found"); err != nil {
 			log.Err(err).Msg("Error writing server error")
 		}
 		return
@@ -162,7 +164,7 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	machine, err := machineRepo.GetMachineByNameAndUser(userMachine.Data.MachineName, user.ID)
 	// if the machine already exists, reject
 	if err == nil && machine.ID != uuid.Nil {
-		if err = utils.WriteServerError[dto.MessageDto](&conn, "Machine already exists"); err != nil {
+		if err = wsutils.WriteServerError[dto.MessageDto](&conn, "Machine already exists"); err != nil {
 			log.Err(err).Msg("Error writing server error")
 		}
 		return
@@ -178,13 +180,13 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	words, err := diceware.GenerateWithWordList(3, diceware.WordListEffLarge())
 	if err != nil {
 		log.Err(err).Msg("Error generating diceware")
-		if err := utils.WriteServerError[dto.MessageDto](&conn, "Error generating diceware"); err != nil {
+		if err := wsutils.WriteServerError[dto.MessageDto](&conn, "Error generating diceware"); err != nil {
 			log.Err(err).Msg("Error writing server error")
 		}
 		return
 	}
 	challengePhrase := strings.Join(words, "-")
-	if err := utils.WriteServerMessage(&conn, dto.MessageDto{Message: challengePhrase}); err != nil {
+	if err := wsutils.WriteServerMessage(&conn, dto.MessageDto{Message: challengePhrase}); err != nil {
 		log.Err(err).Msg("Error writing challenge phrase")
 		return
 	}
@@ -198,7 +200,7 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	ChallengeResponseDict.WriteChallenge(challengePhrase, ChallengeSession{
 		Username:          user.Username,
 		ChallengeAccepted: make(chan bool),
-		ChallengerChannel: make(chan []byte),
+		ChallengerChannel: make(chan *dto.PublicKeyDto),
 		ResponderChannel:  make(chan []byte),
 	})
 	defer func() {
@@ -252,33 +254,40 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	challengeResult := <-challengeResponse
 
 	if !challengeResult {
-		if err := utils.WriteServerError[dto.MessageDto](&conn, "Challenge timed out"); err != nil {
+		if err := wsutils.WriteServerError[dto.MessageDto](&conn, "Challenge timed out"); err != nil {
 			log.Err(err).Msg("Error writing server error")
 		}
 		return
 	}
-	if err := utils.WriteServerMessage(&conn, dto.MessageDto{Message: "Challenge accepted!"}); err != nil {
+	if err := wsutils.WriteServerMessage(&conn, dto.MessageDto{Message: "Challenge accepted!"}); err != nil {
 		log.Err(err).Msg("Error writing challenge accepted")
 		return
 	}
-	pubkey, err := utils.ReadClientMessage[dto.PublicKeyDto](&conn)
+	pubkey, err := wsutils.ReadClientMessage[dto.PublicKeyDto](&conn)
 	if err != nil {
 		log.Err(err).Msg("Error reading client message")
 		return
 	}
 
-	cha.ChallengerChannel <- pubkey.Data.PublicKey
+	if _, err := crypto.ValidatePublicKey(pubkey.Data.PublicKey); err != nil {
+		log.Err(err).Msg("Invalid public key format in challenge flow")
+		if err := wsutils.WriteServerError[dto.MessageDto](&conn, "Invalid public key format"); err != nil {
+			log.Err(err).Msg("Error writing server error")
+		}
+		return
+	}
+	cha.ChallengerChannel <- &pubkey.Data
 	encryptedMasterKey := <-cha.ResponderChannel
 	machine.PublicKey = pubkey.Data.PublicKey
 	if _, err = machineRepo.CreateMachine(machine); err != nil {
 		log.Err(err).Msg("Error creating machine")
 		return
 	}
-	if err := utils.WriteServerMessage(&conn, dto.EncryptedMasterKeyDto{EncryptedMasterKey: encryptedMasterKey}); err != nil {
+	if err := wsutils.WriteServerMessage(&conn, dto.EncryptedMasterKeyDto{EncryptedMasterKey: encryptedMasterKey}); err != nil {
 		log.Err(err).Msg("Error writing encrypted master key")
 		return
 	}
-	if err := utils.WriteServerMessage(&conn, dto.MessageDto{Message: "Everything is done, you can now use ssh-sync"}); err != nil {
+	if err := wsutils.WriteServerMessage(&conn, dto.MessageDto{Message: "Everything is done, you can now use ssh-sync"}); err != nil {
 		log.Err(err).Msg("Error writing final message")
 		return
 	}
