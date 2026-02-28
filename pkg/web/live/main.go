@@ -1,6 +1,7 @@
 package live
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"net"
@@ -40,6 +41,7 @@ type ChallengeSession struct {
 	ChallengeAccepted chan bool
 	ChallengerChannel chan *dto.PublicKeyDto
 	ResponderChannel  chan []byte
+	ResponderNode     string
 }
 
 type SafeChallengeResponseDict struct {
@@ -79,6 +81,7 @@ func MachineChallengeResponse(i *do.Injector, r *http.Request, w http.ResponseWr
 func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.ResponseWriter, c *net.Conn) {
 	conn := *c
 	defer conn.Close()
+	bus := getChallengeBus()
 
 	user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 	if !ok {
@@ -92,6 +95,9 @@ func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.Res
 	}
 	chalChan, ok := ChallengeResponseDict.ReadChallenge(foo.Data.Challenge)
 	if !ok {
+		if handled := handleRemoteChallengeResponse(bus, user, foo.Data.Challenge, &conn); handled {
+			return
+		}
 		log.Warn().Msg("Could not find challenge in dict")
 		if err := wsutils.WriteServerError[dto.ChallengeSuccessEncryptedKeyDto](&conn, "Invalid challenge response."); err != nil {
 			log.Err(err).Msg("Error writing server error")
@@ -130,6 +136,78 @@ func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.Res
 	chalChan.ResponderChannel <- encMasterKeyDto.Data.EncryptedMasterKey
 }
 
+func handleRemoteChallengeResponse(bus *ChallengeBus, user *models.User, challengePhrase string, conn *net.Conn) bool {
+	if bus == nil {
+		return false
+	}
+	meta, err := bus.getMetadata(context.Background(), challengePhrase)
+	if err != nil {
+		log.Err(err).Msg("Error looking up challenge metadata in redis")
+		if err := wsutils.WriteServerError[dto.ChallengeSuccessEncryptedKeyDto](conn, "Error validating challenge."); err != nil {
+			log.Err(err).Msg("Error writing server error")
+		}
+		return true
+	}
+	if meta == nil {
+		return false
+	}
+	if meta.Username != user.Username {
+		log.Warn().Msg("Usernames do not match for remote challenge")
+		return true
+	}
+
+	wait, ok := bus.registerRemoteWait(challengePhrase)
+	if !ok {
+		return false
+	}
+	defer bus.removeRemoteWait(challengePhrase)
+
+	if err := bus.publishAccepted(meta.Owner, challengePhrase, user.Username); err != nil {
+		log.Err(err).Msg("Error publishing accepted challenge event")
+		if err := wsutils.WriteServerError[dto.ChallengeSuccessEncryptedKeyDto](conn, "Error validating challenge."); err != nil {
+			log.Err(err).Msg("Error writing server error")
+		}
+		return true
+	}
+
+	timer := time.NewTimer(30 * time.Second)
+	defer timer.Stop()
+	var challengerKey *dto.PublicKeyDto
+	select {
+	case challengerKey = <-wait.challengerKey:
+		if challengerKey == nil {
+			log.Warn().Msg("Received nil challenger key for remote challenge")
+			if err := wsutils.WriteServerError[dto.ChallengeSuccessEncryptedKeyDto](conn, "Error responding to challenge - client abruptly closed connection."); err != nil {
+				log.Err(err).Msg("Error writing server error")
+			}
+			return true
+		}
+	case <-timer.C:
+		if err := wsutils.WriteServerError[dto.ChallengeSuccessEncryptedKeyDto](conn, "Challenge timed out"); err != nil {
+			log.Err(err).Msg("Error writing server error")
+		}
+		return true
+	}
+
+	keys := dto.ChallengeSuccessEncryptedKeyDto{
+		PublicKey:        challengerKey.PublicKey,
+		EncapsulationKey: challengerKey.EncapsulationKey,
+	}
+	if err := wsutils.WriteServerMessage(conn, keys); err != nil {
+		log.Err(err).Msg("Error writing server message")
+		return true
+	}
+	encMasterKeyDto, err := wsutils.ReadClientMessage[dto.EncryptedMasterKeyDto](conn)
+	if err != nil {
+		log.Err(err).Msg("Error reading client message")
+		return true
+	}
+	if err := bus.publishEncryptedKey(meta.Owner, challengePhrase, encMasterKeyDto.Data.EncryptedMasterKey); err != nil {
+		log.Err(err).Msg("Error publishing encrypted master key")
+	}
+	return true
+}
+
 func NewMachineChallenge(i *do.Injector, r *http.Request, w http.ResponseWriter) error {
 	conn, _, _, err := ws.UpgradeHTTP(r, w)
 	if err != nil {
@@ -142,6 +220,7 @@ func NewMachineChallenge(i *do.Injector, r *http.Request, w http.ResponseWriter)
 func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.ResponseWriter, c *net.Conn) {
 	conn := *c
 	defer conn.Close()
+	bus := getChallengeBus()
 	// first message sent should be JSON payload
 	userMachine, err := wsutils.ReadClientMessage[dto.UserMachineDto](&conn)
 	if err != nil {
@@ -204,6 +283,9 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		ResponderChannel:  make(chan []byte),
 	})
 	defer func() {
+		if bus != nil {
+			bus.removeChallenge(context.Background(), challengePhrase)
+		}
 		ChallengeResponseDict.mux.Lock()
 		defer ChallengeResponseDict.mux.Unlock()
 		item, exists := ChallengeResponseDict.dict[challengePhrase]
@@ -214,6 +296,12 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 			delete(ChallengeResponseDict.dict, challengePhrase)
 		}
 	}()
+
+	if bus != nil {
+		if err := bus.registerChallenge(r.Context(), challengePhrase, user.Username, time.Minute); err != nil {
+			log.Warn().Err(err).Msg("Failed to register challenge in redis")
+		}
+	}
 	timer := time.NewTimer(30 * time.Second)
 	challengeResponse := make(chan bool)
 	go func() {
@@ -246,17 +334,17 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 			}
 		}
 	}()
-	cha, ok := ChallengeResponseDict.ReadChallenge(challengePhrase)
-	if !ok {
-		log.Err(err).Msg("Error getting challenge from dict")
-		return
-	}
 	challengeResult := <-challengeResponse
 
 	if !challengeResult {
 		if err := wsutils.WriteServerError[dto.MessageDto](&conn, "Challenge timed out"); err != nil {
 			log.Err(err).Msg("Error writing server error")
 		}
+		return
+	}
+	cha, ok := ChallengeResponseDict.ReadChallenge(challengePhrase)
+	if !ok {
+		log.Err(err).Msg("Error getting challenge from dict")
 		return
 	}
 	if err := wsutils.WriteServerMessage(&conn, dto.MessageDto{Message: "Challenge accepted!"}); err != nil {
@@ -276,7 +364,14 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		}
 		return
 	}
-	cha.ChallengerChannel <- &pubkey.Data
+	if bus != nil && cha.ResponderNode != "" && cha.ResponderNode != bus.NodeID() {
+		if err := bus.publishChallengerKey(cha.ResponderNode, challengePhrase, pubkey.Data); err != nil {
+			log.Err(err).Msg("Error publishing challenger key to responder node")
+			return
+		}
+	} else {
+		cha.ChallengerChannel <- &pubkey.Data
+	}
 	encryptedMasterKey := <-cha.ResponderChannel
 	machine.PublicKey = pubkey.Data.PublicKey
 	if _, err = machineRepo.CreateMachine(machine); err != nil {
