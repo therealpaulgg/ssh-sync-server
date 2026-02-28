@@ -25,6 +25,52 @@ import (
 	"github.com/therealpaulgg/ssh-sync-server/test/pgx"
 )
 
+func TestAddData_PendingRotation(t *testing.T) {
+	// Arrange
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	writer.Close()
+
+	req, err := http.NewRequest("POST", "/", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	user := testutils.GenerateUser()
+	machine := testutils.GenerateMachine()
+	req = testutils.AddUserContext(req, user)
+	req = testutils.AddMachineContext(req, machine)
+
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
+	})
+
+	pendingRotation := &models.MasterKeyRotation{
+		ID:                 uuid.New(),
+		MachineID:          machine.ID,
+		EncryptedMasterKey: []byte("enc-key"),
+	}
+	mockRotationRepo := repository.NewMockMasterKeyRotationRepository(ctrl)
+	mockRotationRepo.EXPECT().GetRotationForMachine(machine.ID).Return(pendingRotation, nil)
+	do.Provide(injector, func(i *do.Injector) (repository.MasterKeyRotationRepository, error) {
+		return mockRotationRepo, nil
+	})
+
+	// Act
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(addData(injector))
+	handler.ServeHTTP(rr, req)
+
+	// Assert
+	assert.Equal(t, http.StatusConflict, rr.Code)
+}
+
 func TestGetData(t *testing.T) {
 	// Arrange
 	req, err := http.NewRequest("GET", "/", nil)
