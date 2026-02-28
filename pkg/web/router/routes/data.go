@@ -45,6 +45,12 @@ func getData(i *do.Injector) http.HandlerFunc {
 		}
 		log.Debug().Int("config_count", len(config)).Msg("getData: fetched user config")
 		user.Config = config
+		knownHosts, err := userRepo.GetUserKnownHosts(user.ID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		user.KnownHosts = knownHosts
 		dto := dto.DataDto{
 			ID:       user.ID,
 			Username: user.Username,
@@ -62,6 +68,14 @@ func getData(i *do.Injector) http.HandlerFunc {
 					Host:          conf.Host,
 					Values:        conf.Values,
 					IdentityFiles: conf.IdentityFiles,
+				}
+			}),
+			KnownHosts: lo.Map(user.KnownHosts, func(kh models.KnownHost, index int) dto.KnownHostDto {
+				return dto.KnownHostDto{
+					HostPattern: kh.HostPattern,
+					KeyType:     kh.KeyType,
+					KeyData:     kh.KeyData,
+					Marker:      kh.Marker,
 				}
 			}),
 		}
@@ -125,6 +139,30 @@ func addData(i *do.Injector) http.HandlerFunc {
 			return
 		}
 		log.Debug().Int("ssh_config_count", len(user.Config)).Msg("addData: stored ssh config")
+		knownHostsRaw := r.FormValue("known_hosts")
+		if knownHostsRaw != "" {
+			var knownHostDtos []dto.KnownHostDto
+			if err = json.NewDecoder(bytes.NewBufferString(knownHostsRaw)).Decode(&knownHostDtos); err != nil {
+				log.Debug().Err(err).Msg("could not decode known_hosts")
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			user.KnownHosts = lo.Map(knownHostDtos, func(kh dto.KnownHostDto, _ int) models.KnownHost {
+				return models.KnownHost{
+					UserID:      user.ID,
+					HostPattern: kh.HostPattern,
+					KeyType:     kh.KeyType,
+					KeyData:     kh.KeyData,
+					Marker:      kh.Marker,
+				}
+			})
+			if err = userRepo.AddAndUpdateKnownHostsTx(user, tx); err != nil {
+				log.Err(err).Msg("could not add known_hosts")
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
+		log.Debug().Int("known_hosts_count", len(user.KnownHosts)).Msg("addData: stored known hosts")
 		var files []*multipart.FileHeader
 		for _, filelist := range m.File {
 			files = append(files, filelist...)

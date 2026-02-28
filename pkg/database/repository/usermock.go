@@ -224,3 +224,32 @@ func (mr *MockUserRepositoryMockRecorder) GetUserKeys(id interface{}) *gomock.Ca
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserKeys", reflect.TypeOf((*MockUserRepository)(nil).GetUserKeys), id)
 }
+
+// GetUserKnownHosts mocks base method.
+func (m *MockUserRepository) GetUserKnownHosts(id uuid.UUID) ([]models.KnownHost, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserKnownHosts", id)
+	ret0, _ := ret[0].([]models.KnownHost)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserKnownHosts indicates an expected call of GetUserKnownHosts.
+func (mr *MockUserRepositoryMockRecorder) GetUserKnownHosts(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserKnownHosts", reflect.TypeOf((*MockUserRepository)(nil).GetUserKnownHosts), id)
+}
+
+// AddAndUpdateKnownHostsTx mocks base method.
+func (m *MockUserRepository) AddAndUpdateKnownHostsTx(user *models.User, tx pgx.Tx) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddAndUpdateKnownHostsTx", user, tx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AddAndUpdateKnownHostsTx indicates an expected call of AddAndUpdateKnownHostsTx.
+func (mr *MockUserRepositoryMockRecorder) AddAndUpdateKnownHostsTx(user, tx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddAndUpdateKnownHostsTx", reflect.TypeOf((*MockUserRepository)(nil).AddAndUpdateKnownHostsTx), user, tx)
+}
