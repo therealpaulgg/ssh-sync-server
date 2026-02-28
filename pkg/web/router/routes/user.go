@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi"
+	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
 	"github.com/therealpaulgg/ssh-sync-common/pkg/dto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
@@ -14,6 +15,7 @@ import (
 
 func getUser(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Debug().Str("username", chi.URLParam(r, "username")).Msg("getUser: request received")
 		userRepo := do.MustInvoke[repository.UserRepository](i)
 		user, err := userRepo.GetUserByUsername(chi.URLParam(r, "username"))
 		if errors.Is(err, sql.ErrNoRows) {
@@ -24,6 +26,7 @@ func getUser(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("username", user.Username).Msg("getUser: user found")
 		userDto := dto.UserDto{
 			Username: user.Username,
 		}
