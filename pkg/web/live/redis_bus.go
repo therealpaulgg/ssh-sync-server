@@ -12,6 +12,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
+	"github.com/samber/do"
 	"github.com/therealpaulgg/ssh-sync-common/pkg/dto"
 )
 
@@ -49,7 +50,6 @@ type encryptedKeyPayload struct {
 
 type remoteWait struct {
 	challengerKey chan *dto.PublicKeyDto
-	encryptedKey  chan []byte
 }
 
 type ChallengeBus struct {
@@ -61,61 +61,6 @@ type ChallengeBus struct {
 
 	remoteWaits map[string]*remoteWait
 	mux         sync.Mutex
-}
-
-var (
-	challengeBusOnce sync.Once
-	challengeBus     *ChallengeBus
-)
-
-func getChallengeBus() *ChallengeBus {
-	challengeBusOnce.Do(func() {
-		challengeBus = newChallengeBus()
-	})
-	return challengeBus
-}
-
-func newChallengeBus() *ChallengeBus {
-	addr := os.Getenv("REDIS_ADDR")
-	if addr == "" {
-		return nil
-	}
-
-	opts := &redis.Options{Addr: addr}
-	if pwd := os.Getenv("REDIS_PASSWORD"); pwd != "" {
-		opts.Password = pwd
-	}
-	if dbStr := os.Getenv("REDIS_DB"); dbStr != "" {
-		if db, err := strconv.Atoi(dbStr); err == nil {
-			opts.DB = db
-		}
-	}
-
-	client := redis.NewClient(opts)
-	if err := client.Ping(context.Background()).Err(); err != nil {
-		log.Warn().Err(err).Msg("Redis unavailable; falling back to in-memory challenge coordination")
-		return nil
-	}
-
-	nodeID := os.Getenv("NODE_ID")
-	if nodeID == "" {
-		if host, err := os.Hostname(); err == nil {
-			nodeID = host
-		} else {
-			nodeID = "ssh-sync-server"
-		}
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	bus := &ChallengeBus{
-		client:      client,
-		nodeID:      nodeID,
-		ctx:         ctx,
-		cancel:      cancel,
-		remoteWaits: make(map[string]*remoteWait),
-	}
-	bus.startListener()
-	return bus
 }
 
 func (c *ChallengeBus) NodeID() string {
@@ -133,7 +78,7 @@ func (c *ChallengeBus) channelForNode(node string) string {
 	return fmt.Sprintf("challenge:events:%s", node)
 }
 
-func (c *ChallengeBus) registerChallenge(ctx context.Context, challenge, username string, ttl time.Duration) error {
+func (c *ChallengeBus) RegisterChallenge(ctx context.Context, challenge, username string, ttl time.Duration) error {
 	if c == nil {
 		return nil
 	}
@@ -148,7 +93,7 @@ func (c *ChallengeBus) registerChallenge(ctx context.Context, challenge, usernam
 	return c.client.Set(ctx, c.challengeKey(challenge), payload, ttl).Err()
 }
 
-func (c *ChallengeBus) removeChallenge(ctx context.Context, challenge string) {
+func (c *ChallengeBus) RemoveChallenge(ctx context.Context, challenge string) {
 	if c == nil {
 		return
 	}
@@ -157,7 +102,7 @@ func (c *ChallengeBus) removeChallenge(ctx context.Context, challenge string) {
 	}
 }
 
-func (c *ChallengeBus) getMetadata(ctx context.Context, challenge string) (*challengeMetadata, error) {
+func (c *ChallengeBus) GetMetadata(ctx context.Context, challenge string) (*challengeMetadata, error) {
 	if c == nil {
 		return nil, nil
 	}
@@ -242,12 +187,11 @@ func (c *ChallengeBus) registerRemoteWait(challenge string) (*remoteWait, bool) 
 	}
 	c.mux.Lock()
 	defer c.mux.Unlock()
-	if wait, exists := c.remoteWaits[challenge]; exists {
-		return wait, true
+	if _, exists := c.remoteWaits[challenge]; exists {
+		return nil, false
 	}
 	wait := &remoteWait{
 		challengerKey: make(chan *dto.PublicKeyDto, 1),
-		encryptedKey:  make(chan []byte, 1),
 	}
 	c.remoteWaits[challenge] = wait
 	return wait, true
@@ -267,14 +211,16 @@ func (c *ChallengeBus) removeRemoteWait(challenge string) {
 		return
 	}
 	close(wait.challengerKey)
-	close(wait.encryptedKey)
 }
 
-func (c *ChallengeBus) startListener() {
+func (c *ChallengeBus) startListener() error {
 	if c == nil {
-		return
+		return nil
 	}
 	sub := c.client.Subscribe(c.ctx, c.channelForNode(c.nodeID))
+	if _, err := sub.Receive(c.ctx); err != nil {
+		return err
+	}
 	go func() {
 		for msg := range sub.Channel() {
 			event := challengeEvent{}
@@ -282,9 +228,10 @@ func (c *ChallengeBus) startListener() {
 				log.Warn().Err(err).Msg("Failed to unmarshal challenge event")
 				continue
 			}
-			c.handleEvent(event)
+			go c.handleEvent(event)
 		}
 	}()
+	return nil
 }
 
 func (c *ChallengeBus) handleEvent(event challengeEvent) {
@@ -313,19 +260,20 @@ func (c *ChallengeBus) handleEvent(event challengeEvent) {
 		}
 		key := &dto.PublicKeyDto{PublicKey: payload.PublicKey, EncapsulationKey: payload.EncapsulationKey}
 
+		c.mux.Lock()
+		wait, ok := c.remoteWaits[event.Challenge]
+		c.mux.Unlock()
+		if ok {
+			sendKey(wait.challengerKey, key)
+			return
+		}
+
 		ChallengeResponseDict.mux.Lock()
 		session, exists := ChallengeResponseDict.dict[event.Challenge]
 		ChallengeResponseDict.mux.Unlock()
 		if exists {
 			sendKey(session.ChallengerChannel, key)
 			return
-		}
-
-		c.mux.Lock()
-		wait, ok := c.remoteWaits[event.Challenge]
-		c.mux.Unlock()
-		if ok {
-			sendKey(wait.challengerKey, key)
 		}
 	case eventTypeEncryptedMasterKey:
 		payload := encryptedKeyPayload{}
@@ -341,13 +289,6 @@ func (c *ChallengeBus) handleEvent(event challengeEvent) {
 			sendBytes(session.ResponderChannel, payload.EncryptedMasterKey)
 			return
 		}
-
-		c.mux.Lock()
-		wait, ok := c.remoteWaits[event.Challenge]
-		c.mux.Unlock()
-		if ok {
-			sendBytes(wait.encryptedKey, payload.EncryptedMasterKey)
-		}
 	default:
 		log.Warn().Str("type", event.Type).Msg("Received unknown challenge event type")
 	}
@@ -357,28 +298,88 @@ func sendBool(ch chan bool, val bool) {
 	if ch == nil {
 		return
 	}
-	defer func() {
-		_ = recover()
-	}()
-	ch <- val
+	select {
+	case ch <- val:
+	default:
+		log.Warn().Msg("Dropping challenge accepted event; channel not ready")
+	}
 }
 
 func sendKey(ch chan *dto.PublicKeyDto, key *dto.PublicKeyDto) {
 	if ch == nil {
 		return
 	}
-	defer func() {
-		_ = recover()
-	}()
-	ch <- key
+	select {
+	case ch <- key:
+	default:
+		log.Warn().Msg("Dropping challenger key event; channel not ready")
+	}
 }
 
 func sendBytes(ch chan []byte, data []byte) {
 	if ch == nil {
 		return
 	}
-	defer func() {
-		_ = recover()
-	}()
-	ch <- data
+	select {
+	case ch <- data:
+	default:
+		log.Warn().Msg("Dropping encrypted key event; channel not ready")
+	}
+}
+
+func NewChallengeBus(i *do.Injector) (*ChallengeBus, error) {
+	addr := os.Getenv("REDIS_ADDR")
+	if addr == "" {
+		return nil, nil
+	}
+
+	opts := &redis.Options{Addr: addr}
+	if pwd := os.Getenv("REDIS_PASSWORD"); pwd != "" {
+		opts.Password = pwd
+	}
+	if dbStr := os.Getenv("REDIS_DB"); dbStr != "" {
+		if db, err := strconv.Atoi(dbStr); err == nil {
+			opts.DB = db
+		}
+	}
+
+	nodeID := os.Getenv("NODE_ID")
+	if nodeID == "" {
+		if host, err := os.Hostname(); err == nil {
+			nodeID = host
+		} else {
+			nodeID = "ssh-sync-server"
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	client := redis.NewClient(opts)
+	if err := client.Ping(ctx).Err(); err != nil {
+		cancel()
+		return nil, err
+	}
+
+	bus := &ChallengeBus{
+		client:      client,
+		nodeID:      nodeID,
+		ctx:         ctx,
+		cancel:      cancel,
+		remoteWaits: make(map[string]*remoteWait),
+	}
+	if err := bus.startListener(); err != nil {
+		cancel()
+		_ = client.Close()
+		return nil, err
+	}
+	return bus, nil
+}
+
+func (c *ChallengeBus) Close() {
+	if c == nil {
+		return
+	}
+	c.cancel()
+	if err := c.client.Close(); err != nil {
+		log.Warn().Err(err).Msg("Failed to close redis client")
+	}
 }

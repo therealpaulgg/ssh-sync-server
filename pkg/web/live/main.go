@@ -42,6 +42,7 @@ type ChallengeSession struct {
 	ChallengerChannel chan *dto.PublicKeyDto
 	ResponderChannel  chan []byte
 	ResponderNode     string
+	OwnerNode         string
 }
 
 type SafeChallengeResponseDict struct {
@@ -81,7 +82,7 @@ func MachineChallengeResponse(i *do.Injector, r *http.Request, w http.ResponseWr
 func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.ResponseWriter, c *net.Conn) {
 	conn := *c
 	defer conn.Close()
-	bus := getChallengeBus()
+	bus := resolveChallengeBus(i)
 
 	user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 	if !ok {
@@ -103,6 +104,11 @@ func MachineChallengeResponseHandler(i *do.Injector, r *http.Request, w http.Res
 			log.Err(err).Msg("Error writing server error")
 		}
 		return
+	}
+	if bus != nil && chalChan.OwnerNode != "" && chalChan.OwnerNode != bus.NodeID() {
+		if handled := handleRemoteChallengeResponse(bus, user, foo.Data.Challenge, &conn); handled {
+			return
+		}
 	}
 	if user.Username != chalChan.Username {
 		log.Warn().Msg("Usernames do not match. Uh oh...")
@@ -140,7 +146,7 @@ func handleRemoteChallengeResponse(bus *ChallengeBus, user *models.User, challen
 	if bus == nil {
 		return false
 	}
-	meta, err := bus.getMetadata(context.Background(), challengePhrase)
+	meta, err := bus.GetMetadata(context.Background(), challengePhrase)
 	if err != nil {
 		log.Err(err).Msg("Error looking up challenge metadata in redis")
 		if err := wsutils.WriteServerError[dto.ChallengeSuccessEncryptedKeyDto](conn, "Error validating challenge."); err != nil {
@@ -158,7 +164,10 @@ func handleRemoteChallengeResponse(bus *ChallengeBus, user *models.User, challen
 
 	wait, ok := bus.registerRemoteWait(challengePhrase)
 	if !ok {
-		return false
+		if err := wsutils.WriteServerError[dto.ChallengeSuccessEncryptedKeyDto](conn, "Challenge already in progress"); err != nil {
+			log.Err(err).Msg("Error writing server error")
+		}
+		return true
 	}
 	defer bus.removeRemoteWait(challengePhrase)
 
@@ -220,7 +229,7 @@ func NewMachineChallenge(i *do.Injector, r *http.Request, w http.ResponseWriter)
 func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.ResponseWriter, c *net.Conn) {
 	conn := *c
 	defer conn.Close()
-	bus := getChallengeBus()
+	bus := resolveChallengeBus(i)
 	// first message sent should be JSON payload
 	userMachine, err := wsutils.ReadClientMessage[dto.UserMachineDto](&conn)
 	if err != nil {
@@ -281,10 +290,11 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		ChallengeAccepted: make(chan bool),
 		ChallengerChannel: make(chan *dto.PublicKeyDto),
 		ResponderChannel:  make(chan []byte),
+		OwnerNode:         busNodeID(bus),
 	})
 	defer func() {
 		if bus != nil {
-			bus.removeChallenge(context.Background(), challengePhrase)
+			bus.RemoveChallenge(context.Background(), challengePhrase)
 		}
 		ChallengeResponseDict.mux.Lock()
 		defer ChallengeResponseDict.mux.Unlock()
@@ -298,7 +308,7 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	}()
 
 	if bus != nil {
-		if err := bus.registerChallenge(r.Context(), challengePhrase, user.Username, time.Minute); err != nil {
+		if err := bus.RegisterChallenge(r.Context(), challengePhrase, user.Username, time.Minute); err != nil {
 			log.Warn().Err(err).Msg("Failed to register challenge in redis")
 		}
 	}
@@ -386,4 +396,23 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		log.Err(err).Msg("Error writing final message")
 		return
 	}
+}
+
+func resolveChallengeBus(i *do.Injector) *ChallengeBus {
+	if i == nil {
+		return nil
+	}
+	bus, err := do.Invoke[*ChallengeBus](i)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to resolve challenge bus from injector")
+		return nil
+	}
+	return bus
+}
+
+func busNodeID(bus *ChallengeBus) string {
+	if bus == nil {
+		return ""
+	}
+	return bus.NodeID()
 }
