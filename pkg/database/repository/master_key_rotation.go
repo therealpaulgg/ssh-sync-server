@@ -1,5 +1,7 @@
 package repository
 
+//go:generate go run go.uber.org/mock/mockgen -source=master_key_rotation.go -destination=master_key_rotation_mock.go -package=repository
+
 import (
 	"context"
 	"database/sql"
@@ -52,5 +54,3 @@ func (repo *MasterKeyRotationRepo) DeleteRotationForMachine(machineID uuid.UUID)
 	)
 	return err
 }
-
-var _ MasterKeyRotationRepository = (*MasterKeyRotationRepo)(nil)

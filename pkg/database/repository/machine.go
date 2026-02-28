@@ -1,5 +1,7 @@
 package repository
 
+//go:generate go run go.uber.org/mock/mockgen -source=machine.go -destination=machinemock.go -package=repository
+
 import (
 	"context"
 	"database/sql"
