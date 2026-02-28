@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/samber/do"

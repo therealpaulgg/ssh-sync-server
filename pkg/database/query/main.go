@@ -1,5 +1,7 @@
 package query
 
+//go:generate go run go.uber.org/mock/mockgen -source=main.go -destination=mock.go -package=query
+
 import (
 	"context"
 

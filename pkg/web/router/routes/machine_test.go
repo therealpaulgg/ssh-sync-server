@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi"
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/samber/do"
 	"github.com/stretchr/testify/assert"
@@ -218,7 +218,74 @@ func TestUpdateMachineKey(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockMachineRepo := repository.NewMockMachineRepository(ctrl)
-	mockMachineRepo.EXPECT().UpdateMachinePublicKey(machine.ID, pubPEM).Return(nil)
+	mockMachineRepo.EXPECT().UpdateMachineKeys(machine.ID, pubPEM, []byte(nil)).Return(nil)
+	do.Provide(injector, func(i *do.Injector) (repository.MachineRepository, error) {
+		return mockMachineRepo, nil
+	})
+
+	// Act
+	rr := httptest.NewRecorder()
+	router := chi.NewRouter()
+	router.Put("/key", updateMachineKey(injector))
+	router.ServeHTTP(rr, req)
+
+	// Assert
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestUpdateMachineKey_WithEncapsulationKey(t *testing.T) {
+	// Arrange
+	pub, _, err := testutils.GenerateMLDSATestKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pubPEM, err := testutils.EncodeMLDSAToPem(pub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ekBytes := []byte("fake-encapsulation-key-pem")
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("key", "key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = part.Write(pubPEM); err != nil {
+		t.Fatal(err)
+	}
+	ekPart, err := writer.CreateFormFile("encapsulation_key", "encapsulation_key.pub")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = ekPart.Write(ekBytes); err != nil {
+		t.Fatal(err)
+	}
+	if err = writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	req, err := http.NewRequest("PUT", "/key", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	user := testutils.GenerateUser()
+	machine := &models.Machine{
+		ID:        uuid.New(),
+		UserID:    user.ID,
+		Name:      "test",
+		PublicKey: []byte("old-key"),
+	}
+	req = testutils.AddUserContext(req, user)
+	req = testutils.AddMachineContext(req, machine)
+
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockMachineRepo := repository.NewMockMachineRepository(ctrl)
+	mockMachineRepo.EXPECT().UpdateMachineKeys(machine.ID, pubPEM, ekBytes).Return(nil)
 	do.Provide(injector, func(i *do.Injector) (repository.MachineRepository, error) {
 		return mockMachineRepo, nil
 	})
@@ -362,7 +429,7 @@ func TestUpdateMachineKey_UpdateError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockMachineRepo := repository.NewMockMachineRepository(ctrl)
-	mockMachineRepo.EXPECT().UpdateMachinePublicKey(machine.ID, pubPEM).Return(errors.New("update failed"))
+	mockMachineRepo.EXPECT().UpdateMachineKeys(machine.ID, pubPEM, []byte(nil)).Return(errors.New("update failed"))
 	do.Provide(injector, func(i *do.Injector) (repository.MachineRepository, error) {
 		return mockMachineRepo, nil
 	})

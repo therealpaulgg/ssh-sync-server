@@ -279,6 +279,7 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 	cha.ChallengerChannel <- &pubkey.Data
 	encryptedMasterKey := <-cha.ResponderChannel
 	machine.PublicKey = pubkey.Data.PublicKey
+	machine.EncapsulationKey = pubkey.Data.EncapsulationKey
 	if _, err = machineRepo.CreateMachine(machine); err != nil {
 		log.Err(err).Msg("Error creating machine")
 		return

@@ -1,5 +1,7 @@
 package database
 
+//go:generate go run go.uber.org/mock/mockgen -destination=mock.go -package=database github.com/therealpaulgg/ssh-sync-server/pkg/database DataAccessor
+
 import (
 	"context"
 	"net/url"

@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi"
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 	"github.com/samber/do"
 	"github.com/stretchr/testify/assert"
 	"github.com/therealpaulgg/ssh-sync-common/pkg/dto"

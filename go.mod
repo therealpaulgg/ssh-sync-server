@@ -38,14 +38,12 @@ require (
 	golang.org/x/text v0.31.0 // indirect
 )
 
-require (
-	github.com/golang/mock v1.7.0-rc.1
-	github.com/stretchr/testify v1.9.0
-)
+require github.com/stretchr/testify v1.9.0
 
 require (
 	filippo.io/mldsa v0.0.0-20260215214346-43d0283efc3e
 	github.com/therealpaulgg/ssh-sync-common v0.0.4
+	go.uber.org/mock v0.6.0
 )
 
 require (

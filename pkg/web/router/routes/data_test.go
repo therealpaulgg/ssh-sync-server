@@ -3,6 +3,7 @@ package routes
 import (
 	"bytes"
 	"crypto/rand"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi"
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/samber/do"
 	"github.com/stretchr/testify/assert"
@@ -23,6 +24,52 @@ import (
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/testutils"
 	"github.com/therealpaulgg/ssh-sync-server/test/pgx"
 )
+
+func TestAddData_PendingRotation(t *testing.T) {
+	// Arrange
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	writer.Close()
+
+	req, err := http.NewRequest("POST", "/", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	user := testutils.GenerateUser()
+	machine := testutils.GenerateMachine()
+	req = testutils.AddUserContext(req, user)
+	req = testutils.AddMachineContext(req, machine)
+
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
+	})
+
+	pendingRotation := &models.MasterKeyRotation{
+		ID:                 uuid.New(),
+		MachineID:          machine.ID,
+		EncryptedMasterKey: []byte("enc-key"),
+	}
+	mockRotationRepo := repository.NewMockMasterKeyRotationRepository(ctrl)
+	mockRotationRepo.EXPECT().GetRotationForMachine(machine.ID).Return(pendingRotation, nil)
+	do.Provide(injector, func(i *do.Injector) (repository.MasterKeyRotationRepository, error) {
+		return mockRotationRepo, nil
+	})
+
+	// Act
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(addData(injector))
+	handler.ServeHTTP(rr, req)
+
+	// Assert
+	assert.Equal(t, http.StatusConflict, rr.Code)
+}
 
 func TestGetData(t *testing.T) {
 	// Arrange
@@ -155,6 +202,11 @@ func TestAddData(t *testing.T) {
 	do.Provide(injector, func(i *do.Injector) (query.TransactionService, error) {
 		return mockTransactionService, nil
 	})
+	mockRotationRepo := repository.NewMockMasterKeyRotationRepository(ctrl)
+	mockRotationRepo.EXPECT().GetRotationForMachine(machine.ID).Return(nil, sql.ErrNoRows)
+	do.Provide(injector, func(i *do.Injector) (repository.MasterKeyRotationRepository, error) {
+		return mockRotationRepo, nil
+	})
 
 	// Act
 	rr := httptest.NewRecorder()
@@ -184,9 +236,15 @@ func TestAddDataBadRequest(t *testing.T) {
 	req = testutils.AddMachineContext(req, machine)
 	injector := do.New()
 	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 	mockUserRepo := repository.NewMockUserRepository(ctrl)
 	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
 		return mockUserRepo, nil
+	})
+	mockRotationRepo := repository.NewMockMasterKeyRotationRepository(ctrl)
+	mockRotationRepo.EXPECT().GetRotationForMachine(machine.ID).Return(nil, sql.ErrNoRows)
+	do.Provide(injector, func(i *do.Injector) (repository.MasterKeyRotationRepository, error) {
+		return mockRotationRepo, nil
 	})
 
 	// Act
@@ -247,6 +305,11 @@ func TestAddDataError(t *testing.T) {
 	mockTransactionService.EXPECT().Rollback(txMock).Return(nil)
 	do.Provide(injector, func(i *do.Injector) (query.TransactionService, error) {
 		return mockTransactionService, nil
+	})
+	mockRotationRepo := repository.NewMockMasterKeyRotationRepository(ctrl)
+	mockRotationRepo.EXPECT().GetRotationForMachine(machine.ID).Return(nil, sql.ErrNoRows)
+	do.Provide(injector, func(i *do.Injector) (repository.MasterKeyRotationRepository, error) {
+		return mockRotationRepo, nil
 	})
 
 	// Act

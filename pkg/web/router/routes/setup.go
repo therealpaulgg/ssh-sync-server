@@ -58,6 +58,17 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 			return
 		}
 		log.Debug().Msg("initialSetup: public key validated")
+		var encapsulationKeyBytes []byte
+		ekFile, _, ekErr := r.FormFile("encapsulation_key")
+		if ekErr == nil {
+			defer ekFile.Close()
+			encapsulationKeyBytes, err = io.ReadAll(ekFile)
+			if err != nil {
+				log.Err(err).Msg("error reading encapsulation key file")
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
 		txQueryService := do.MustInvoke[query.TransactionService](i)
 		tx, err := txQueryService.StartTx(pgx.TxOptions{})
 		if err != nil {
@@ -87,6 +98,7 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 		machine.Name = machineName
 		machine.UserID = user.ID
 		machine.PublicKey = fileBytes
+		machine.EncapsulationKey = encapsulationKeyBytes
 		log.Debug().Str("machine_name", machine.Name).Msg("initialSetup: creating machine")
 		_, err = machineRepo.CreateMachineTx(machine, tx)
 		if err != nil {
