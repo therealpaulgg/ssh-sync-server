@@ -45,6 +45,7 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 		defer file.Close()
 		fileBytes, err := io.ReadAll(file)
 		if err != nil {
+			log.Err(err).Msg("error reading file")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
