@@ -152,14 +152,52 @@ func updateMachineKey(i *do.Injector) http.HandlerFunc {
 			return
 		}
 		log.Debug().Msg("updateMachineKey: public key validated")
+		var ekBytes []byte
+		ekFile, _, ekErr := r.FormFile("encapsulation_key")
+		if ekErr == nil {
+			defer ekFile.Close()
+			ekBytes, err = io.ReadAll(ekFile)
+			if err != nil {
+				log.Err(err).Msg("error reading encapsulation key file")
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
 		machineRepo := do.MustInvoke[repository.MachineRepository](i)
-		if err := machineRepo.UpdateMachinePublicKey(machine.ID, fileBytes); err != nil {
-			log.Err(err).Msg("error updating machine public key")
+		if err := machineRepo.UpdateMachineKeys(machine.ID, fileBytes, ekBytes); err != nil {
+			log.Err(err).Msg("error updating machine keys")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		log.Debug().Str("machine_id", machine.ID.String()).Msg("updateMachineKey: machine public key updated")
+		log.Debug().Str("machine_id", machine.ID.String()).Msg("updateMachineKey: machine keys updated")
 		w.WriteHeader(http.StatusOK)
+	}
+}
+
+func getMachinePublicKeys(i *do.Injector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
+		if !ok {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		machineRepo := do.MustInvoke[repository.MachineRepository](i)
+		machines, err := machineRepo.GetUserMachines(user.ID)
+		if err != nil {
+			log.Err(err).Msg("getMachinePublicKeys: error fetching machines")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		dtos := make([]dto.MachinePublicKeyDto, len(machines))
+		for idx, m := range machines {
+			dtos[idx] = dto.MachinePublicKeyDto{
+				MachineID:        m.ID,
+				Name:             m.Name,
+				PublicKey:        m.PublicKey,
+				EncapsulationKey: m.EncapsulationKey,
+			}
+		}
+		json.NewEncoder(w).Encode(dto.MachinesPublicKeysDto{Machines: dtos})
 	}
 }
 
@@ -168,6 +206,7 @@ func MachineRoutes(i *do.Injector) chi.Router {
 	r.Use(middleware.ConfigureAuth(i))
 	r.Get("/{machineId}", getMachineById(i))
 	r.Get("/", getMachines(i))
+	r.Get("/public-keys", getMachinePublicKeys(i))
 	r.Delete("/", deleteMachine(i))
 	r.Put("/key", updateMachineKey(i))
 	return r

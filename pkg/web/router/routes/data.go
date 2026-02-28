@@ -2,6 +2,7 @@ package routes
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"mime/multipart"
@@ -25,7 +26,7 @@ func getData(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 		if !ok {
-			log.Err(errors.New("could not get user from context"))
+			log.Error().Msg("could not get user from context")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -88,7 +89,23 @@ func addData(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 		if !ok {
-			log.Err(errors.New("could not get user from context"))
+			log.Error().Msg("could not get user from context")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		machine, ok := r.Context().Value(context_keys.MachineContextKey).(*models.Machine)
+		if !ok {
+			log.Error().Msg("could not get machine from context")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		rotationRepo := do.MustInvoke[repository.MasterKeyRotationRepository](i)
+		if _, err := rotationRepo.GetRotationForMachine(machine.ID); err == nil {
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(dto.MessageDto{Message: "a master key rotation is pending; run 'ssh-sync download' to apply it before uploading"})
+			return
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			log.Err(err).Msg("addData: error checking pending rotation")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -207,7 +224,7 @@ func deleteData(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 		if !ok {
-			log.Err(errors.New("could not get user from context"))
+			log.Error().Msg("could not get user from context")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}

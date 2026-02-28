@@ -1,5 +1,7 @@
 package repository
 
+//go:generate go run go.uber.org/mock/mockgen -source=ssh_key.go -destination=ssh_key_mock.go -package=repository
+
 import (
 	"github.com/jackc/pgx/v5"
 	"github.com/samber/do"

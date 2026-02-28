@@ -1,5 +1,7 @@
 package query
 
+//go:generate go run go.uber.org/mock/mockgen -source=transaction.go -destination=transactionmock.go -package=query
+
 import (
 	"context"
 	"net/http"

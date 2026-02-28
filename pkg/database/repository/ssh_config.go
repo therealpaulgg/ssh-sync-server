@@ -1,5 +1,7 @@
 package repository
 
+//go:generate go run go.uber.org/mock/mockgen -source=ssh_config.go -destination=ssh_config_mock.go -package=repository
+
 import (
 	"database/sql"
 
