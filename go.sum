@@ -87,10 +87,6 @@ github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/
 github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
-github.com/therealpaulgg/ssh-sync-common v0.0.1 h1:jGF8W/mS7YE0Le8jny+qfNYUcTayN1pfsp71QXFC9Ys=
-github.com/therealpaulgg/ssh-sync-common v0.0.1/go.mod h1:eGg17M5ihJpAIJ7RDXot0UDK6K4wRTHciY1rPJolaDU=
-github.com/therealpaulgg/ssh-sync-common v0.0.2 h1:Y6bQSXD175rzwVrVjw046Dq2EaeAP9fbvhc8refd11U=
-github.com/therealpaulgg/ssh-sync-common v0.0.2/go.mod h1:eGg17M5ihJpAIJ7RDXot0UDK6K4wRTHciY1rPJolaDU=
 github.com/therealpaulgg/ssh-sync-common v0.0.3 h1:fkTTBflY0ZIUhvTjvTtRGnpjiWUe4N6gIYiKQuLj35Y=
 github.com/therealpaulgg/ssh-sync-common v0.0.3/go.mod h1:eGg17M5ihJpAIJ7RDXot0UDK6K4wRTHciY1rPJolaDU=
 github.com/yuin/goldmark v1.4.1/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
