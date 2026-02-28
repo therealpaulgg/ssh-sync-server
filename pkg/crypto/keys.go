@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"filippo.io/mldsa"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 )
@@ -45,10 +46,14 @@ func ValidatePublicKey(pemBytes []byte) (KeyType, error) {
 		}
 		return KeyTypeECDSA, nil
 	case KeyTypeMLDSA:
-		if _, err := ParseMLDSAPublicKey(pemBytes); err != nil {
-			return KeyTypeUnknown, err
+		// Try all supported variants; the PEM block does not encode the parameter set.
+		for _, algStr := range []string{mldsa.MLDSA44().String(), mldsa.MLDSA65().String(), mldsa.MLDSA87().String()} {
+			alg, _ := MLDSAAlgorithmFromString(algStr)
+			if _, err := ParseMLDSAPublicKey(pemBytes, alg); err == nil {
+				return KeyTypeMLDSA, nil
+			}
 		}
-		return KeyTypeMLDSA, nil
+		return KeyTypeUnknown, errors.New("invalid ML-DSA public key")
 	default:
 		return KeyTypeUnknown, errors.New("unsupported key type")
 	}

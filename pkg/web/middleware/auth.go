@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"filippo.io/mldsa"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
@@ -38,7 +39,7 @@ func extractAuthClaims(tokenString, alg string) (username, machine string, err e
 		if !ok || machine == "" {
 			return "", "", errors.New("missing machine claim")
 		}
-	case "MLDSA":
+	case mldsa.MLDSA44().String(), mldsa.MLDSA65().String(), mldsa.MLDSA87().String():
 		parts := strings.SplitN(tokenString, ".", 3)
 		if len(parts) != 3 {
 			return "", "", errors.New("invalid JWT format")

@@ -95,7 +95,7 @@ func EncodeMLDSAToPem(pub *mldsa.PublicKey) ([]byte, error) {
 
 // GenerateMLDSATestToken creates and signs a JWT with ML-DSA for testing.
 func GenerateMLDSATestToken(username, machine string, priv *mldsa.PrivateKey) (string, error) {
-	header := `{"alg":"MLDSA","typ":"JWT"}`
+	header := fmt.Sprintf(`{"alg":"%s","typ":"JWT"}`, mldsa.MLDSA65().String())
 	now := time.Now()
 	claims, err := json.Marshal(map[string]interface{}{
 		"iss":      "github.com/therealpaulgg/ssh-sync",
@@ -122,7 +122,7 @@ func GenerateMLDSATestToken(username, machine string, priv *mldsa.PrivateKey) (s
 
 // GenerateExpiredMLDSATestToken creates an expired ML-DSA JWT for testing.
 func GenerateExpiredMLDSATestToken(username, machine string, priv *mldsa.PrivateKey) (string, error) {
-	header := `{"alg":"MLDSA","typ":"JWT"}`
+	header := fmt.Sprintf(`{"alg":"%s","typ":"JWT"}`, mldsa.MLDSA65().String())
 	past := time.Now().Add(-10 * time.Minute)
 	claims, err := json.Marshal(map[string]interface{}{
 		"iss":      "github.com/therealpaulgg/ssh-sync",

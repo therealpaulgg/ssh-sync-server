@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"filippo.io/mldsa"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
@@ -44,8 +45,12 @@ func VerifyJWT(tokenString, alg string, publicKeyPEM []byte) error {
 		if _, err := jwt.ParseString(tokenString, jwt.WithKey(jwa.SignatureAlgorithm(alg), key)); err != nil {
 			return fmt.Errorf("EC JWT verification failed: %w", err)
 		}
-	case "MLDSA":
-		pubKey, err := ParseMLDSAPublicKey(publicKeyPEM)
+	case mldsa.MLDSA44().String(), mldsa.MLDSA65().String(), mldsa.MLDSA87().String():
+		mldsaAlg, err := MLDSAAlgorithmFromString(alg)
+		if err != nil {
+			return err
+		}
+		pubKey, err := ParseMLDSAPublicKey(publicKeyPEM, mldsaAlg)
 		if err != nil {
 			return fmt.Errorf("parsing ML-DSA public key: %w", err)
 		}

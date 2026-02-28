@@ -16,7 +16,23 @@ type jwtExpClaims struct {
 	Exp float64 `json:"exp"`
 }
 
-func ParseMLDSAPublicKey(pemBytes []byte) (*mldsa.PublicKey, error) {
+// MLDSAAlgorithmFromString maps a JOSE algorithm identifier to its *mldsa.Parameters.
+// Algorithm identifiers follow draft-ietf-cose-dilithium:
+// https://datatracker.ietf.org/doc/draft-ietf-cose-dilithium/
+func MLDSAAlgorithmFromString(algStr string) (*mldsa.Parameters, error) {
+	switch algStr {
+	case mldsa.MLDSA44().String():
+		return mldsa.MLDSA44(), nil
+	case mldsa.MLDSA65().String():
+		return mldsa.MLDSA65(), nil
+	case mldsa.MLDSA87().String():
+		return mldsa.MLDSA87(), nil
+	default:
+		return nil, fmt.Errorf("unsupported ML-DSA algorithm: %s", algStr)
+	}
+}
+
+func ParseMLDSAPublicKey(pemBytes []byte, algorithm *mldsa.Parameters) (*mldsa.PublicKey, error) {
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
 		return nil, errors.New("failed to decode PEM block")
@@ -24,13 +40,16 @@ func ParseMLDSAPublicKey(pemBytes []byte) (*mldsa.PublicKey, error) {
 	if block.Type != "MLDSA PUBLIC KEY" {
 		return nil, fmt.Errorf("unexpected PEM block type: %s", block.Type)
 	}
-	pk, err := mldsa.NewPublicKey(mldsa.MLDSA65(), block.Bytes)
+	pk, err := mldsa.NewPublicKey(algorithm, block.Bytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse ML-DSA public key: %w", err)
 	}
 	return pk, nil
 }
 
+// VerifyMLDSAJWT verifies a JWT whose alg is an ML-DSA variant as defined in
+// draft-ietf-cose-dilithium:
+// https://datatracker.ietf.org/doc/draft-ietf-cose-dilithium/
 func VerifyMLDSAJWT(tokenString string, pubKey *mldsa.PublicKey) error {
 	parts := strings.SplitN(tokenString, ".", 3)
 	if len(parts) != 3 {

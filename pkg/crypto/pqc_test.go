@@ -37,7 +37,7 @@ func generateMLDSAPEM(t *testing.T) ([]byte, *mldsa.PublicKey, *mldsa.PrivateKey
 
 func signMLDSAJWT(t *testing.T, priv *mldsa.PrivateKey, username, machine string, exp time.Time) string {
 	t.Helper()
-	header := `{"alg":"MLDSA","typ":"JWT"}`
+	header := fmt.Sprintf(`{"alg":"%s","typ":"JWT"}`, mldsa.MLDSA65().String())
 	claims := fmt.Sprintf(
 		`{"iss":"test","iat":%d,"exp":%d,"username":"%s","machine":"%s"}`,
 		time.Now().Add(-1*time.Minute).Unix(), exp.Unix(), username, machine,
@@ -72,21 +72,21 @@ func TestDetectKeyType_UnknownBlockType(t *testing.T) {
 
 func TestParseMLDSAPublicKey_Valid(t *testing.T) {
 	pemBytes, _, _ := generateMLDSAPEM(t)
-	pk, err := ParseMLDSAPublicKey(pemBytes)
+	pk, err := ParseMLDSAPublicKey(pemBytes, mldsa.MLDSA65())
 	require.NoError(t, err)
 	assert.NotNil(t, pk)
 }
 
 func TestParseMLDSAPublicKey_WrongPEMType(t *testing.T) {
 	pemBytes := generateECDSAPEM(t)
-	_, err := ParseMLDSAPublicKey(pemBytes)
+	_, err := ParseMLDSAPublicKey(pemBytes, mldsa.MLDSA65())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unexpected PEM block type")
 }
 
 func TestParseMLDSAPublicKey_InvalidData(t *testing.T) {
 	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "MLDSA PUBLIC KEY", Bytes: []byte{1, 2, 3}})
-	_, err := ParseMLDSAPublicKey(pemBytes)
+	_, err := ParseMLDSAPublicKey(pemBytes, mldsa.MLDSA65())
 	assert.Error(t, err)
 }
 
@@ -120,15 +120,37 @@ func TestDetectJWTAlgorithm_ES512(t *testing.T) {
 	assert.Equal(t, "ES512", alg)
 }
 
-func TestDetectJWTAlgorithm_MLDSA(t *testing.T) {
-	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"MLDSA","typ":"JWT"}`))
+func TestDetectJWTAlgorithm_MLDSA65(t *testing.T) {
+	header := base64.RawURLEncoding.EncodeToString([]byte(fmt.Sprintf(`{"alg":"%s","typ":"JWT"}`, mldsa.MLDSA65().String())))
 	payload := base64.RawURLEncoding.EncodeToString([]byte(`{}`))
 	sig := base64.RawURLEncoding.EncodeToString([]byte("fakesig"))
 	token := header + "." + payload + "." + sig
 
 	alg, err := DetectJWTAlgorithm(token)
 	require.NoError(t, err)
-	assert.Equal(t, "MLDSA", alg)
+	assert.Equal(t, mldsa.MLDSA65().String(), alg)
+}
+
+func TestDetectJWTAlgorithm_MLDSA44(t *testing.T) {
+	header := base64.RawURLEncoding.EncodeToString([]byte(fmt.Sprintf(`{"alg":"%s","typ":"JWT"}`, mldsa.MLDSA44().String())))
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{}`))
+	sig := base64.RawURLEncoding.EncodeToString([]byte("fakesig"))
+	token := header + "." + payload + "." + sig
+
+	alg, err := DetectJWTAlgorithm(token)
+	require.NoError(t, err)
+	assert.Equal(t, mldsa.MLDSA44().String(), alg)
+}
+
+func TestDetectJWTAlgorithm_MLDSA87(t *testing.T) {
+	header := base64.RawURLEncoding.EncodeToString([]byte(fmt.Sprintf(`{"alg":"%s","typ":"JWT"}`, mldsa.MLDSA87().String())))
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{}`))
+	sig := base64.RawURLEncoding.EncodeToString([]byte("fakesig"))
+	token := header + "." + payload + "." + sig
+
+	alg, err := DetectJWTAlgorithm(token)
+	require.NoError(t, err)
+	assert.Equal(t, mldsa.MLDSA87().String(), alg)
 }
 
 func TestDetectJWTAlgorithm_InvalidFormat(t *testing.T) {
