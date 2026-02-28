@@ -59,7 +59,8 @@ func VerifyMLDSAJWT(tokenString string, pubKey *mldsa.PublicKey) error {
 		return fmt.Errorf("failed to decode signature: %w", err)
 	}
 
-	if err := mldsa.Verify(pubKey, []byte(parts[0]+"."+parts[1]), sigBytes, nil); err != nil {
+	signedToken := fmt.Sprintf("%s.%s", parts[0], parts[1])
+	if err := mldsa.Verify(pubKey, []byte(signedToken), sigBytes, nil); err != nil {
 		return errors.New("ML-DSA signature verification failed")
 	}
 
