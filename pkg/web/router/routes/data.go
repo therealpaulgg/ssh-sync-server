@@ -23,6 +23,7 @@ import (
 
 func getData(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Debug().Msg("getData: request received")
 		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 		if !ok {
 			log.Err(errors.New("could not get user from context"))
@@ -36,12 +37,14 @@ func getData(i *do.Injector) http.HandlerFunc {
 			return
 		}
 		user.Keys = keys
+		log.Debug().Int("key_count", len(keys)).Msg("getData: user keys retrieved")
 		config, err := userRepo.GetUserConfig(user.ID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		user.Config = config
+		log.Debug().Int("config_count", len(config)).Msg("getData: user config retrieved")
 		dto := dto.DataDto{
 			ID:       user.ID,
 			Username: user.Username,
@@ -63,11 +66,13 @@ func getData(i *do.Injector) http.HandlerFunc {
 			}),
 		}
 		json.NewEncoder(w).Encode(dto)
+		log.Debug().Msg("getData: response sent")
 	}
 }
 
 func addData(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Debug().Msg("addData: request received")
 		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 		if !ok {
 			log.Err(errors.New("could not get user from context"))
@@ -81,6 +86,7 @@ func addData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Msg("addData: form parsed")
 		m := r.MultipartForm
 		sshConfigDataRaw := r.FormValue("ssh_config")
 		if sshConfigDataRaw == "" {
@@ -94,6 +100,7 @@ func addData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Int("config_count", len(sshConfig)).Msg("addData: ssh config parsed")
 		sshConfigData := lo.Map(sshConfig, func(conf dto.SshConfigDto, i int) models.SshConfig {
 			return models.SshConfig{
 				UserID:        user.ID,
@@ -111,15 +118,18 @@ func addData(i *do.Injector) http.HandlerFunc {
 			return
 		}
 		defer query.RollbackFunc(txQueryService, tx, w, &err)
+		log.Debug().Msg("addData: transaction started")
 		if err = userRepo.AddAndUpdateConfigTx(user, tx); err != nil {
 			log.Err(err).Msg("could not add config")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Msg("addData: config saved")
 		var files []*multipart.FileHeader
 		for _, filelist := range m.File {
 			files = append(files, filelist...)
 		}
+		log.Debug().Int("file_count", len(files)).Msg("addData: files collected")
 		for i := range files {
 			file, err := files[i].Open()
 			if err != nil {
@@ -143,11 +153,13 @@ func addData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Int("key_count", len(user.Keys)).Msg("addData: keys saved")
 	}
 }
 
 func deleteData(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Debug().Msg("deleteData: request received")
 		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 		if !ok {
 			log.Err(errors.New("could not get user from context"))
@@ -161,6 +173,7 @@ func deleteData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Str("key_id", keyId.String()).Msg("deleteData: key ID parsed")
 		userRepo := do.MustInvoke[repository.UserRepository](i)
 		key, err := userRepo.GetUserKey(user.ID, keyId)
 		if err != nil {
@@ -168,6 +181,7 @@ func deleteData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
+		log.Debug().Str("filename", key.Filename).Msg("deleteData: key retrieved")
 		txQueryService := do.MustInvoke[query.TransactionService](i)
 		tx, err := txQueryService.StartTx(pgx.TxOptions{})
 		if err != nil {
@@ -176,11 +190,13 @@ func deleteData(i *do.Injector) http.HandlerFunc {
 			return
 		}
 		defer query.RollbackFunc(txQueryService, tx, w, &err)
+		log.Debug().Msg("deleteData: transaction started")
 		if err = userRepo.DeleteUserKeyTx(user, key.ID, tx); err != nil {
 			log.Err(err).Msg("could not delete key")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("key_id", keyId.String()).Msg("deleteData: key deleted successfully")
 	}
 }
 

@@ -26,6 +26,7 @@ type DeleteRequest struct {
 
 func getMachineById(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Debug().Msg("getMachineById: request received")
 		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 		if !ok {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -43,6 +44,7 @@ func getMachineById(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Str("machine_id", machineId.String()).Msg("getMachineById: machine ID parsed")
 		machine, found := lo.Find(user.Machines, func(machine models.Machine) bool {
 			return machine.ID == machineId
 		})
@@ -50,15 +52,18 @@ func getMachineById(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
+		log.Debug().Str("machine_name", machine.Name).Msg("getMachineById: machine retrieved")
 		machineDto := dto.MachineDto{
 			Name: machine.Name,
 		}
 		json.NewEncoder(w).Encode(machineDto)
+		log.Debug().Msg("getMachineById: response sent")
 	}
 }
 
 func getMachines(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Debug().Msg("getMachines: request received")
 		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 		if !ok {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -71,6 +76,7 @@ func getMachines(i *do.Injector) http.HandlerFunc {
 			return
 		}
 		user.Machines = machines
+		log.Debug().Int("count", len(machines)).Msg("getMachines: machines retrieved")
 		machineDtos := make([]dto.MachineDto, len(user.Machines))
 		for i, machine := range user.Machines {
 			machineDtos[i] = dto.MachineDto{
@@ -78,11 +84,13 @@ func getMachines(i *do.Injector) http.HandlerFunc {
 			}
 		}
 		json.NewEncoder(w).Encode(machineDtos)
+		log.Debug().Msg("getMachines: response sent")
 	}
 }
 
 func deleteMachine(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Debug().Msg("deleteMachine: request received")
 		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
 		if !ok {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -93,6 +101,7 @@ func deleteMachine(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Str("machine_name", deleteRequest.MachineName).Msg("deleteMachine: machine name parsed")
 		machineRepo := do.MustInvoke[repository.MachineRepository](i)
 		machine, err := machineRepo.GetMachineByNameAndUser(deleteRequest.MachineName, user.ID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -103,16 +112,19 @@ func deleteMachine(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("machine_id", machine.ID.String()).Msg("deleteMachine: machine retrieved")
 		if err := machineRepo.DeleteMachine(machine.ID); err != nil {
 			log.Err(err).Msg("Error deleting machine")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("machine_name", deleteRequest.MachineName).Msg("deleteMachine: machine deleted successfully")
 	}
 }
 
 func updateMachineKey(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Debug().Msg("updateMachineKey: request received")
 		machine, ok := r.Context().Value(context_keys.MachineContextKey).(*models.Machine)
 		if !ok {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -123,6 +135,7 @@ func updateMachineKey(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Msg("updateMachineKey: form parsed")
 		file, _, err := r.FormFile("key")
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -139,12 +152,14 @@ func updateMachineKey(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Msg("updateMachineKey: public key validated")
 		machineRepo := do.MustInvoke[repository.MachineRepository](i)
 		if err := machineRepo.UpdateMachinePublicKey(machine.ID, fileBytes); err != nil {
 			log.Err(err).Msg("error updating machine public key")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("machine_id", machine.ID.String()).Msg("updateMachineKey: machine key updated successfully")
 		w.WriteHeader(http.StatusOK)
 	}
 }

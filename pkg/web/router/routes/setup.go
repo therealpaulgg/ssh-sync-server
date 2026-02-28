@@ -20,6 +20,7 @@ import (
 
 func initialSetup(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Debug().Msg("initialSetup: request received")
 		var userDto dto.UserDto
 		err := r.ParseMultipartForm(32 << 20)
 		if err != nil {
@@ -37,6 +38,7 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Str("username", username).Str("machine_name", machineName).Msg("initialSetup: parsed form values")
 		file, _, err := r.FormFile("key")
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -53,6 +55,7 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Msg("initialSetup: public key validated")
 		txQueryService := do.MustInvoke[query.TransactionService](i)
 		tx, err := txQueryService.StartTx(pgx.TxOptions{})
 		if err != nil {
@@ -61,6 +64,7 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 			return
 		}
 		defer query.RollbackFunc(txQueryService, tx, w, &err)
+		log.Debug().Msg("initialSetup: transaction started")
 		userRepo := do.MustInvoke[repository.UserRepository](i)
 		user := &models.User{}
 		user.Username = userDto.Username
@@ -74,6 +78,7 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("username", user.Username).Msg("initialSetup: user created")
 		machineRepo := do.MustInvoke[repository.MachineRepository](i)
 		machine := &models.Machine{}
 		machine.Name = machineName
@@ -89,28 +94,33 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("machine_name", machine.Name).Msg("initialSetup: machine created")
 	}
 }
 
 func challengeResponse(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Debug().Msg("challengeResponse: request received")
 		err := live.MachineChallengeResponse(i, r, w)
 		if err != nil {
 			log.Err(err).Msg("error with challenge response creation")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Msg("challengeResponse: challenge response created successfully")
 	}
 }
 
 func getExisting(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Debug().Msg("getExisting: request received")
 		err := live.NewMachineChallenge(i, r, w)
 		if err != nil {
 			log.Err(err).Msg("error creating challenge")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Msg("getExisting: challenge created successfully")
 	}
 }
 
