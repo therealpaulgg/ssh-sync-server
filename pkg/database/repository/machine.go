@@ -21,6 +21,7 @@ type MachineRepository interface {
 	CreateMachineTx(machine *models.Machine, tx pgx.Tx) (*models.Machine, error)
 	GetUserMachines(id uuid.UUID) ([]models.Machine, error)
 	UpdateMachinePublicKey(id uuid.UUID, publicKey []byte) error
+	UpdateMachineEncapsulationKey(id uuid.UUID, key []byte) error
 }
 
 type MachineRepo struct {
@@ -79,7 +80,7 @@ func (repo *MachineRepo) CreateMachine(machine *models.Machine) (*models.Machine
 	if existingMachine != nil {
 		return nil, ErrMachineAlreadyExists
 	}
-	newMachine, err := q.QueryOne("insert into machines (user_id, name, public_key) values ($1, $2, $3) returning *", machine.UserID, machine.Name, machine.PublicKey)
+	newMachine, err := q.QueryOne("insert into machines (user_id, name, public_key, encapsulation_key) values ($1, $2, $3, $4) returning *", machine.UserID, machine.Name, machine.PublicKey, machine.EncapsulationKey)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +99,7 @@ func (repo *MachineRepo) CreateMachineTx(machine *models.Machine, tx pgx.Tx) (*m
 	if existingMachine != nil {
 		return nil, ErrMachineAlreadyExists
 	}
-	newMachine, err := q.QueryOne(tx, "insert into machines (user_id, name, public_key) values ($1, $2, $3) returning *", machine.UserID, machine.Name, machine.PublicKey)
+	newMachine, err := q.QueryOne(tx, "insert into machines (user_id, name, public_key, encapsulation_key) values ($1, $2, $3, $4) returning *", machine.UserID, machine.Name, machine.PublicKey, machine.EncapsulationKey)
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +115,16 @@ func (repo *MachineRepo) UpdateMachinePublicKey(id uuid.UUID, publicKey []byte) 
 		context.TODO(),
 		"UPDATE machines SET public_key = $1 WHERE id = $2",
 		publicKey, id,
+	)
+	return err
+}
+
+func (repo *MachineRepo) UpdateMachineEncapsulationKey(id uuid.UUID, key []byte) error {
+	q := do.MustInvoke[database.DataAccessor](repo.Injector)
+	_, err := q.GetConnection().Exec(
+		context.TODO(),
+		"UPDATE machines SET encapsulation_key = $1 WHERE id = $2",
+		key, id,
 	)
 	return err
 }

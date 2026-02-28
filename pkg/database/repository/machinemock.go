@@ -124,6 +124,20 @@ func (mr *MockMachineRepositoryMockRecorder) UpdateMachinePublicKey(id, publicKe
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMachinePublicKey", reflect.TypeOf((*MockMachineRepository)(nil).UpdateMachinePublicKey), id, publicKey)
 }
 
+// UpdateMachineEncapsulationKey mocks base method.
+func (m *MockMachineRepository) UpdateMachineEncapsulationKey(id uuid.UUID, key []byte) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateMachineEncapsulationKey", id, key)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateMachineEncapsulationKey indicates an expected call of UpdateMachineEncapsulationKey.
+func (mr *MockMachineRepositoryMockRecorder) UpdateMachineEncapsulationKey(id, key interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMachineEncapsulationKey", reflect.TypeOf((*MockMachineRepository)(nil).UpdateMachineEncapsulationKey), id, key)
+}
+
 // GetUserMachines mocks base method.
 func (m *MockMachineRepository) GetUserMachines(id uuid.UUID) ([]models.Machine, error) {
 	m.ctrl.T.Helper()

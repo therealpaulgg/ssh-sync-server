@@ -45,7 +45,7 @@ require (
 
 require (
 	filippo.io/mldsa v0.0.0-20260215214346-43d0283efc3e
-	github.com/therealpaulgg/ssh-sync-common v0.0.2
+	github.com/therealpaulgg/ssh-sync-common v0.0.3
 )
 
 require (

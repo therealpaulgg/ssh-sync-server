@@ -24,6 +24,7 @@ func Router(i *do.Injector) chi.Router {
 	apiV1Router.Mount("/setup", routes.SetupRoutes(i))
 	apiV1Router.Mount("/machines", routes.MachineRoutes(i))
 	apiV1Router.Mount("/data", routes.DataRoutes(i))
+	apiV1Router.Mount("/key-rotation", routes.KeyRotationRoutes(i))
 	baseRouter.Mount("/api/v1", apiV1Router)
 	return baseRouter
 }
