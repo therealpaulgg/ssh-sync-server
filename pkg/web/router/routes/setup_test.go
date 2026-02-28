@@ -169,5 +169,3 @@ func TestInitialSetup_InvalidKey(t *testing.T) {
 			status, http.StatusBadRequest)
 	}
 }
-
-// TODO non-happy-paths

@@ -373,5 +373,3 @@ func TestUpdateMachineKey_UpdateError(t *testing.T) {
 	router.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 }
-
-// TODO non-happy-paths

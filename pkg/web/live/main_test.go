@@ -111,3 +111,59 @@ func TestNewMachineChallengeHandler_MachineExists(t *testing.T) {
 	require.True(t, strings.Contains(err.Error(), "Machine already exists"))
 	<-done
 }
+
+func TestMachineChallenge_GoldenPath(t *testing.T) {
+	ChallengeResponseDict = SafeChallengeResponseDict{dict: make(map[string]ChallengeSession)}
+	injector := do.New()
+	user := testutils.GenerateUser()
+	challengePhrase := "alpha-bravo-charlie"
+
+	acceptChan := make(chan bool, 1)
+	challengerChan := make(chan *dto.PublicKeyDto, 1)
+	responderChan := make(chan []byte, 1)
+	ChallengeResponseDict.WriteChallenge(challengePhrase, ChallengeSession{
+		Username:          user.Username,
+		ChallengeAccepted: acceptChan,
+		ChallengerChannel: challengerChan,
+		ResponderChannel:  responderChan,
+	})
+
+	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+	defer clientConn.Close()
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req = testutils.AddUserContext(req, user)
+
+	done := make(chan struct{})
+	go func() {
+		MachineChallengeResponseHandler(injector, req, httptest.NewRecorder(), &serverConn)
+		close(done)
+	}()
+
+	// Send challenge response from client
+	require.NoError(t, wsutils.WriteClientMessage(&clientConn, dto.ChallengeResponseDto{
+		Challenge: challengePhrase,
+	}))
+
+	// Provide challenger key for server to forward
+	challengerKey := &dto.PublicKeyDto{PublicKey: []byte("pub"), EncapsulationKey: []byte("enc")}
+	challengerChan <- challengerKey
+
+	// Read success response
+	successMsg, err := wsutils.ReadServerMessage[dto.ChallengeSuccessEncryptedKeyDto](&clientConn)
+	require.NoError(t, err)
+	require.Equal(t, challengerKey.PublicKey, successMsg.Data.PublicKey)
+	require.Equal(t, challengerKey.EncapsulationKey, successMsg.Data.EncapsulationKey)
+
+	// Send encrypted master key back
+	masterKey := []byte("master")
+	require.NoError(t, wsutils.WriteClientMessage(&clientConn, dto.EncryptedMasterKeyDto{
+		EncryptedMasterKey: masterKey,
+	}))
+
+	// Ensure master key delivered to responder channel
+	delivered := <-responderChan
+	require.Equal(t, masterKey, delivered)
+	<-done
+}
