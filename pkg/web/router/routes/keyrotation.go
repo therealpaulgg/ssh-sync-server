@@ -23,11 +23,6 @@ func postKeyRotation(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		machine, ok := r.Context().Value(context_keys.MachineContextKey).(*models.Machine)
-		if !ok {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
 
 		var req dto.MasterKeyRotationRequestDto
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -53,10 +48,6 @@ func postKeyRotation(i *do.Injector) http.HandlerFunc {
 			if !machineIDSet[entry.MachineID.String()] {
 				w.WriteHeader(http.StatusForbidden)
 				return
-			}
-			// The rotating machine already has the new key saved locally; skip its entry.
-			if entry.MachineID == machine.ID {
-				continue
 			}
 			if err := rotationRepo.UpsertRotation(entry.MachineID, entry.EncryptedMasterKey); err != nil {
 				log.Err(err).Msg("postKeyRotation: error upserting rotation")
