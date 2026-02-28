@@ -31,6 +31,7 @@ type UserRepository interface {
 	AddAndUpdateConfigTx(user *models.User, tx pgx.Tx) error
 	AddAndUpdateKnownHostsTx(user *models.User, tx pgx.Tx) error
 	DeleteUserKeyTx(user *models.User, id uuid.UUID, tx pgx.Tx) error
+	DeleteUserConfigTx(user *models.User, id uuid.UUID, tx pgx.Tx) error
 }
 
 type UserRepo struct {
@@ -239,5 +240,10 @@ func (repo *UserRepo) GetUserKey(userId uuid.UUID, keyId uuid.UUID) (*models.Ssh
 
 func (repo *UserRepo) DeleteUserKeyTx(user *models.User, id uuid.UUID, tx pgx.Tx) error {
 	_, err := tx.Exec(context.TODO(), "delete from ssh_keys where user_id = $1 and id = $2", user.ID, id)
+	return err
+}
+
+func (repo *UserRepo) DeleteUserConfigTx(user *models.User, id uuid.UUID, tx pgx.Tx) error {
+	_, err := tx.Exec(context.TODO(), "delete from ssh_configs where user_id = $1 and id = $2", user.ID, id)
 	return err
 }
