@@ -85,8 +85,8 @@ github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/
 github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
-github.com/therealpaulgg/ssh-sync-common v0.0.3 h1:fkTTBflY0ZIUhvTjvTtRGnpjiWUe4N6gIYiKQuLj35Y=
-github.com/therealpaulgg/ssh-sync-common v0.0.3/go.mod h1:eGg17M5ihJpAIJ7RDXot0UDK6K4wRTHciY1rPJolaDU=
+github.com/therealpaulgg/ssh-sync-common v0.0.4 h1:IFeN6KNyHwiW1KN6shM//V461K8793wKYdhQPr4YzeA=
+github.com/therealpaulgg/ssh-sync-common v0.0.4/go.mod h1:eGg17M5ihJpAIJ7RDXot0UDK6K4wRTHciY1rPJolaDU=
 go.uber.org/mock v0.6.0 h1:hyF9dfmbgIX5EfOdasqLsWD6xqpNZlXblLB/Dbnwv3Y=
 go.uber.org/mock v0.6.0/go.mod h1:KiVJ4BqZJaMj4svdfmHM0AUx4NJYO8ZNpPnZn1Z+BBU=
 golang.org/x/crypto v0.45.0 h1:jMBrvKuj23MTlT0bQEOBcAE0mjg8mK9RXFhRH6nyF3Q=

@@ -66,6 +66,7 @@ func getData(i *do.Injector) http.HandlerFunc {
 			}),
 			SshConfig: lo.Map(user.Config, func(conf models.SshConfig, index int) dto.SshConfigDto {
 				return dto.SshConfigDto{
+					ID:            conf.ID,
 					Host:          conf.Host,
 					Values:        conf.Values,
 					IdentityFiles: conf.IdentityFiles,
@@ -263,11 +264,91 @@ func deleteData(i *do.Injector) http.HandlerFunc {
 	}
 }
 
+func upsertConfigEntry(i *do.Injector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
+		if !ok {
+			log.Err(errors.New("could not get user from context"))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		log.Debug().Str("username", user.Username).Msg("upsertConfigEntry: request received")
+		var configDto dto.SshConfigDto
+		if err := json.NewDecoder(r.Body).Decode(&configDto); err != nil {
+			log.Err(err).Msg("upsertConfigEntry: could not decode body")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if configDto.Host == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		config := models.SshConfig{
+			UserID:        user.ID,
+			Host:          configDto.Host,
+			Values:        configDto.Values,
+			IdentityFiles: configDto.IdentityFiles,
+		}
+		configRepo := do.MustInvoke[repository.SshConfigRepository](i)
+		txQueryService := do.MustInvoke[query.TransactionService](i)
+		tx, err := txQueryService.StartTx(pgx.TxOptions{})
+		if err != nil {
+			log.Err(err).Msg("upsertConfigEntry: error starting transaction")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		defer query.RollbackFunc(txQueryService, tx, w, &err)
+		if _, err = configRepo.UpsertSshConfigTx(&config, tx); err != nil {
+			log.Err(err).Msg("upsertConfigEntry: could not upsert config")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		log.Debug().Str("host", config.Host).Msg("upsertConfigEntry: config entry upserted")
+	}
+}
+
+func deleteConfigEntry(i *do.Injector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := r.Context().Value(context_keys.UserContextKey).(*models.User)
+		if !ok {
+			log.Err(errors.New("could not get user from context"))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		log.Debug().Str("username", user.Username).Msg("deleteConfigEntry: request received")
+		configIdStr := chi.URLParam(r, "id")
+		configId, err := uuid.Parse(configIdStr)
+		if err != nil {
+			log.Err(err).Msg("deleteConfigEntry: could not parse config id")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		log.Debug().Str("config_id", configId.String()).Msg("deleteConfigEntry: parsed config id")
+		userRepo := do.MustInvoke[repository.UserRepository](i)
+		txQueryService := do.MustInvoke[query.TransactionService](i)
+		tx, err := txQueryService.StartTx(pgx.TxOptions{})
+		if err != nil {
+			log.Err(err).Msg("deleteConfigEntry: error starting transaction")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		defer query.RollbackFunc(txQueryService, tx, w, &err)
+		if err = userRepo.DeleteUserConfigTx(user, configId, tx); err != nil {
+			log.Err(err).Msg("deleteConfigEntry: could not delete config entry")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		log.Debug().Str("config_id", configId.String()).Msg("deleteConfigEntry: config entry deleted")
+	}
+}
+
 func DataRoutes(i *do.Injector) chi.Router {
 	r := chi.NewRouter()
 	r.Use(middleware.ConfigureAuth(i))
 	r.Get("/", getData(i))
 	r.Post("/", addData(i))
 	r.Delete("/key/{id}", deleteData(i))
+	r.Post("/config", upsertConfigEntry(i))
+	r.Delete("/config/{id}", deleteConfigEntry(i))
 	return r
 }
