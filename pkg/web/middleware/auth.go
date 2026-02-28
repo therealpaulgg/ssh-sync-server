@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"filippo.io/mldsa"
+	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
@@ -25,7 +26,7 @@ type authClaims struct {
 
 func extractAuthClaims(tokenString, alg string) (username, machine string, err error) {
 	switch alg {
-	case "ES256", "ES512":
+	case jwa.ES256.String(), jwa.ES512.String():
 		token, err := jwt.ParseString(tokenString, jwt.WithVerify(false))
 		if err != nil {
 			return "", "", err

@@ -36,7 +36,7 @@ func DetectJWTAlgorithm(tokenString string) (string, error) {
 
 func VerifyJWT(tokenString, alg string, publicKeyPEM []byte) error {
 	switch alg {
-	case "ES256", "ES512":
+	case jwa.ES256.String(), jwa.ES512.String():
 		key, err := jwk.ParseKey(publicKeyPEM, jwk.WithPEM(true))
 		if err != nil {
 			return fmt.Errorf("parsing EC public key: %w", err)
