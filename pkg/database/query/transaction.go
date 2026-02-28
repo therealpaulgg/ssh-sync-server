@@ -35,22 +35,22 @@ func (q *TransactionServiceImpl) Rollback(tx pgx.Tx) error {
 }
 
 type QueryServiceTx[T any] interface {
-	Query(tx pgx.Tx, query string, args ...interface{}) ([]T, error)
-	QueryOne(tx pgx.Tx, query string, args ...interface{}) (*T, error)
-	Insert(tx pgx.Tx, query string, args ...interface{}) error
+	Query(tx pgx.Tx, query string, args ...any) ([]T, error)
+	QueryOne(tx pgx.Tx, query string, args ...any) (*T, error)
+	Insert(tx pgx.Tx, query string, args ...any) error
 }
 
 type QueryServiceTxImpl[T any] struct {
 	DataAccessor database.DataAccessor
 }
 
-func (q *QueryServiceTxImpl[T]) Query(tx pgx.Tx, query string, args ...interface{}) ([]T, error) {
+func (q *QueryServiceTxImpl[T]) Query(tx pgx.Tx, query string, args ...any) ([]T, error) {
 	var results []T
 	err := pgxscan.Select(context.Background(), tx, &results, query, args...)
 	return results, err
 }
 
-func (q *QueryServiceTxImpl[T]) QueryOne(tx pgx.Tx, query string, args ...interface{}) (*T, error) {
+func (q *QueryServiceTxImpl[T]) QueryOne(tx pgx.Tx, query string, args ...any) (*T, error) {
 	rows, err := q.Query(tx, query, args...)
 	if err != nil {
 		return nil, err
@@ -61,7 +61,7 @@ func (q *QueryServiceTxImpl[T]) QueryOne(tx pgx.Tx, query string, args ...interf
 	return &rows[0], nil
 }
 
-func (q *QueryServiceTxImpl[T]) Insert(tx pgx.Tx, query string, args ...interface{}) error {
+func (q *QueryServiceTxImpl[T]) Insert(tx pgx.Tx, query string, args ...any) error {
 	_, err := tx.Exec(context.Background(), query, args...)
 	return err
 }

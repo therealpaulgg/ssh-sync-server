@@ -168,7 +168,7 @@ func TestDetectJWTAlgorithm_ES512(t *testing.T) {
 }
 
 func TestDetectJWTAlgorithm_MLDSA65(t *testing.T) {
-	header := base64.RawURLEncoding.EncodeToString([]byte(fmt.Sprintf(`{"alg":"%s","typ":"JWT"}`, mldsa.MLDSA65().String())))
+	header := base64.RawURLEncoding.EncodeToString(fmt.Appendf(nil, `{"alg":"%s","typ":"JWT"}`, mldsa.MLDSA65().String()))
 	payload := base64.RawURLEncoding.EncodeToString([]byte(`{}`))
 	sig := base64.RawURLEncoding.EncodeToString([]byte("fakesig"))
 	token := header + "." + payload + "." + sig
@@ -179,7 +179,7 @@ func TestDetectJWTAlgorithm_MLDSA65(t *testing.T) {
 }
 
 func TestDetectJWTAlgorithm_MLDSA44(t *testing.T) {
-	header := base64.RawURLEncoding.EncodeToString([]byte(fmt.Sprintf(`{"alg":"%s","typ":"JWT"}`, mldsa.MLDSA44().String())))
+	header := base64.RawURLEncoding.EncodeToString(fmt.Appendf(nil, `{"alg":"%s","typ":"JWT"}`, mldsa.MLDSA44().String()))
 	payload := base64.RawURLEncoding.EncodeToString([]byte(`{}`))
 	sig := base64.RawURLEncoding.EncodeToString([]byte("fakesig"))
 	token := header + "." + payload + "." + sig
@@ -190,7 +190,7 @@ func TestDetectJWTAlgorithm_MLDSA44(t *testing.T) {
 }
 
 func TestDetectJWTAlgorithm_MLDSA87(t *testing.T) {
-	header := base64.RawURLEncoding.EncodeToString([]byte(fmt.Sprintf(`{"alg":"%s","typ":"JWT"}`, mldsa.MLDSA87().String())))
+	header := base64.RawURLEncoding.EncodeToString(fmt.Appendf(nil, `{"alg":"%s","typ":"JWT"}`, mldsa.MLDSA87().String()))
 	payload := base64.RawURLEncoding.EncodeToString([]byte(`{}`))
 	sig := base64.RawURLEncoding.EncodeToString([]byte("fakesig"))
 	token := header + "." + payload + "." + sig

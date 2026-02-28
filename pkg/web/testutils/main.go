@@ -97,7 +97,7 @@ func EncodeMLDSAToPem(pub *mldsa.PublicKey) ([]byte, error) {
 func GenerateMLDSATestToken(username, machine string, priv *mldsa.PrivateKey) (string, error) {
 	header := fmt.Sprintf(`{"alg":"%s","typ":"JWT"}`, mldsa.MLDSA65().String())
 	now := time.Now()
-	claims, err := json.Marshal(map[string]interface{}{
+	claims, err := json.Marshal(map[string]any{
 		"iss":      "github.com/therealpaulgg/ssh-sync",
 		"iat":      now.Add(-1 * time.Minute).Unix(),
 		"exp":      now.Add(2 * time.Minute).Unix(),
@@ -124,7 +124,7 @@ func GenerateMLDSATestToken(username, machine string, priv *mldsa.PrivateKey) (s
 func GenerateExpiredMLDSATestToken(username, machine string, priv *mldsa.PrivateKey) (string, error) {
 	header := fmt.Sprintf(`{"alg":"%s","typ":"JWT"}`, mldsa.MLDSA65().String())
 	past := time.Now().Add(-10 * time.Minute)
-	claims, err := json.Marshal(map[string]interface{}{
+	claims, err := json.Marshal(map[string]any{
 		"iss":      "github.com/therealpaulgg/ssh-sync",
 		"iat":      past.Unix(),
 		"exp":      past.Add(5 * time.Minute).Unix(),
