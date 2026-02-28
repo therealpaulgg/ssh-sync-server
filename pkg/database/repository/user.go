@@ -24,10 +24,12 @@ type UserRepository interface {
 	GetUserConfig(id uuid.UUID) ([]models.SshConfig, error)
 	GetUserKeys(id uuid.UUID) ([]models.SshKey, error)
 	GetUserKey(userId uuid.UUID, keyId uuid.UUID) (*models.SshKey, error)
+	GetUserKnownHosts(id uuid.UUID) ([]models.KnownHost, error)
 	AddAndUpdateKeys(user *models.User) error
 	AddAndUpdateKeysTx(user *models.User, tx pgx.Tx) error
 	AddAndUpdateConfig(user *models.User) error
 	AddAndUpdateConfigTx(user *models.User, tx pgx.Tx) error
+	AddAndUpdateKnownHostsTx(user *models.User, tx pgx.Tx) error
 	DeleteUserKeyTx(user *models.User, id uuid.UUID, tx pgx.Tx) error
 }
 
@@ -118,6 +120,9 @@ func (repo *UserRepo) DeleteUser(id uuid.UUID) error {
 	if _, err := tx.Exec(context.TODO(), "delete from ssh_configs where user_id = $1", id); err != nil {
 		return err
 	}
+	if _, err := tx.Exec(context.TODO(), "delete from known_hosts where user_id = $1", id); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(context.TODO(), "delete from machines where user_id = $1", id); err != nil {
 		return err
 	}
@@ -194,6 +199,28 @@ func (repo *UserRepo) AddAndUpdateConfigTx(user *models.User, tx pgx.Tx) error {
 			return err
 		}
 		*configPtr = *newConfig
+	}
+	return nil
+}
+
+func (repo *UserRepo) GetUserKnownHosts(id uuid.UUID) ([]models.KnownHost, error) {
+	q := do.MustInvoke[query.QueryService[models.KnownHost]](repo.Injector)
+	entries, err := q.Query("select * from known_hosts where user_id = $1", id)
+	if err != nil {
+		return nil, err
+	}
+	return entries, nil
+}
+
+func (repo *UserRepo) AddAndUpdateKnownHostsTx(user *models.User, tx pgx.Tx) error {
+	knownHostRepo := do.MustInvoke[KnownHostRepository](repo.Injector)
+	for i := range user.KnownHosts {
+		entryPtr := &user.KnownHosts[i]
+		newEntry, err := knownHostRepo.UpsertKnownHostTx(entryPtr, tx)
+		if err != nil {
+			return err
+		}
+		*entryPtr = *newEntry
 	}
 	return nil
 }

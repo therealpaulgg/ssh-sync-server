@@ -47,6 +47,7 @@ func TestGetData(t *testing.T) {
 	mockUserRepo := repository.NewMockUserRepository(ctrl)
 	mockUserRepo.EXPECT().GetUserKeys(user.ID).Return(data, nil)
 	mockUserRepo.EXPECT().GetUserConfig(user.ID).Return(nil, nil)
+	mockUserRepo.EXPECT().GetUserKnownHosts(user.ID).Return(nil, nil)
 	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
 		return mockUserRepo, nil
 	})
