@@ -141,4 +141,33 @@ func TestInitialSetup_MLDSA(t *testing.T) {
 	}
 }
 
+func TestInitialSetup_InvalidKey(t *testing.T) {
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	_ = writer.WriteField("username", "test")
+	_ = writer.WriteField("machine_name", "mymachine")
+	part, err := writer.CreateFormFile("key", "key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = part.Write([]byte("not a key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest("POST", "/", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	rr := httptest.NewRecorder()
+	handler := initialSetup(do.New())
+	handler.ServeHTTP(rr, req)
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf("initialSetup returned wrong status code: got %v want %v",
+			status, http.StatusBadRequest)
+	}
+}
+
 // TODO non-happy-paths

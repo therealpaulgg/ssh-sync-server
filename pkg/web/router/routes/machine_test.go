@@ -104,6 +104,27 @@ func TestGetMachines(t *testing.T) {
 	assert.Equal(t, userMachines[0].Name, machineDtos[0].Name)
 }
 
+func TestGetMachinesError(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	user := testutils.GenerateUser()
+	req = testutils.AddUserContext(req, user)
+
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockMachineRepo := repository.NewMockMachineRepository(ctrl)
+	mockMachineRepo.EXPECT().GetUserMachines(user.ID).Return(nil, errors.New("failure"))
+	do.Provide(injector, func(i *do.Injector) (repository.MachineRepository, error) {
+		return mockMachineRepo, nil
+	})
+
+	rr := httptest.NewRecorder()
+	router := chi.NewRouter()
+	router.Get("/", getMachines(injector))
+	router.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
 func TestDeleteMachine(t *testing.T) {
 	// Arrange
 	machineName := "test"

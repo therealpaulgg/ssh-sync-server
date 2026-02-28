@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"database/sql"
 	"errors"
 	"testing"
 
@@ -32,4 +33,22 @@ func TestCreateMachineAlreadyExists(t *testing.T) {
 	repo := &MachineRepo{Injector: injector}
 	_, err := repo.CreateMachine(machine)
 	assert.True(t, errors.Is(err, ErrMachineAlreadyExists))
+}
+
+func TestGetMachineNoRows(t *testing.T) {
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	id := uuid.New()
+	mockQuery := query.NewMockQueryService[models.Machine](ctrl)
+	mockQuery.EXPECT().QueryOne("select * from machines where id = $1", id).Return(nil, nil)
+	do.Provide(injector, func(i *do.Injector) (query.QueryService[models.Machine], error) {
+		return mockQuery, nil
+	})
+
+	repo := &MachineRepo{Injector: injector}
+	machine, err := repo.GetMachine(id)
+	assert.Nil(t, machine)
+	assert.True(t, errors.Is(err, sql.ErrNoRows))
 }
