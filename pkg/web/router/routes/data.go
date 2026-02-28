@@ -193,6 +193,13 @@ func addData(i *do.Injector) http.HandlerFunc {
 			return
 		}
 		log.Debug().Int("keys_count", len(user.Keys)).Msg("addData: stored keys")
+		responseKeys := lo.Map(user.Keys, func(key models.SshKey, _ int) dto.KeyDto {
+			return dto.KeyDto{
+				Filename:  key.Filename,
+				UpdatedAt: key.UpdatedAt,
+			}
+		})
+		json.NewEncoder(w).Encode(responseKeys)
 	}
 }
 
