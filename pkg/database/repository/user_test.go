@@ -50,6 +50,30 @@ func TestCreateUserAlreadyExists(t *testing.T) {
 	assert.ErrorIs(t, err, ErrUserAlreadyExists)
 }
 
+func TestCreateUserSuccess(t *testing.T) {
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	username := "newuser"
+	mockQuery := query.NewMockQueryService[models.User](ctrl)
+	gomock.InOrder(
+		mockQuery.EXPECT().QueryOne("select * from users where username = $1", username).Return(nil, nil),
+		mockQuery.EXPECT().QueryOne("insert into users (username) values ($1) returning *", username).Return(&models.User{
+			ID:       uuid.New(),
+			Username: username,
+		}, nil),
+	)
+	do.Provide(injector, func(i *do.Injector) (query.QueryService[models.User], error) {
+		return mockQuery, nil
+	})
+
+	repo := &UserRepo{Injector: injector}
+	user, err := repo.CreateUser(&models.User{Username: username})
+	assert.NoError(t, err)
+	assert.Equal(t, username, user.Username)
+}
+
 func TestGetUserNoRows(t *testing.T) {
 	injector := do.New()
 	ctrl := gomock.NewController(t)

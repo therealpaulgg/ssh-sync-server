@@ -52,3 +52,22 @@ func TestGetMachineNoRows(t *testing.T) {
 	assert.Nil(t, machine)
 	assert.True(t, errors.Is(err, sql.ErrNoRows))
 }
+
+func TestGetMachineSuccess(t *testing.T) {
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	id := uuid.New()
+	expected := &models.Machine{ID: id, Name: "ok", UserID: uuid.New()}
+	mockQuery := query.NewMockQueryService[models.Machine](ctrl)
+	mockQuery.EXPECT().QueryOne("select * from machines where id = $1", id).Return(expected, nil)
+	do.Provide(injector, func(i *do.Injector) (query.QueryService[models.Machine], error) {
+		return mockQuery, nil
+	})
+
+	repo := &MachineRepo{Injector: injector}
+	machine, err := repo.GetMachine(id)
+	assert.NoError(t, err)
+	assert.Equal(t, expected, machine)
+}
