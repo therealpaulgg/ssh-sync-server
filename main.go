@@ -9,12 +9,17 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
 	"github.com/therealpaulgg/ssh-sync-server/internal/setup"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/live"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/router"
 )
 
 func main() {
 	injector := do.New()
 	setup.SetupServices(injector)
+	challengeBus := do.MustInvoke[*live.ChallengeBus](injector)
+	if challengeBus != nil {
+		defer challengeBus.Close()
+	}
 	err := godotenv.Load()
 	if os.Getenv("NO_DOTENV") != "1" && err != nil {
 		log.Fatal().Err(err).Msg("Error loading .env file")

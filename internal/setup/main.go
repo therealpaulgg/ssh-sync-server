@@ -6,6 +6,7 @@ import (
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/web/live"
 )
 
 func SetupServices(i *do.Injector) {
@@ -69,5 +70,6 @@ func SetupServices(i *do.Injector) {
 	do.Provide(i, func(i *do.Injector) (repository.KnownHostRepository, error) {
 		return &repository.KnownHostRepo{Injector: i}, nil
 	})
+	do.Provide(i, live.NewChallengeBus)
 
 }

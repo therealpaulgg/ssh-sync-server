@@ -91,6 +91,12 @@ The server can be configured using the following environment variables:
 | DATABASE_PASSWORD | PostgreSQL database password | N/A |
 | DATABASE_NAME | PostgreSQL database name | N/A |
 | DATABASE_HOST | PostgreSQL host address | N/A |
+| REDIS_ADDR | Redis address for distributed challenge coordination | (unset) |
+| REDIS_PASSWORD | Redis password (if required) | (unset) |
+| REDIS_DB | Redis database number for challenge state | 0 |
+| NODE_ID | Unique identifier for this server instance (defaults to hostname) | (unset) |
+
+Redis settings are optional for single-node deployments. When provided, challenge handshakes are coordinated through Redis pub/sub so multiple ssh-sync-server instances can share challenge state.
 
 ### Setting Up with Nginx Reverse Proxy
 
