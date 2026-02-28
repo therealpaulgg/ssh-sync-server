@@ -10,7 +10,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
 	"github.com/therealpaulgg/ssh-sync-common/pkg/dto"
-	pqc "github.com/therealpaulgg/ssh-sync-server/pkg/crypto"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/crypto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
@@ -48,7 +48,7 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		if _, err := pqc.ValidatePublicKey(fileBytes); err != nil {
+		if _, err := crypto.ValidatePublicKey(fileBytes); err != nil {
 			log.Debug().Err(err).Msg("invalid public key")
 			w.WriteHeader(http.StatusBadRequest)
 			return

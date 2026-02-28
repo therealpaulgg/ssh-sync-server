@@ -16,7 +16,7 @@ import (
 	"github.com/sethvargo/go-diceware/diceware"
 	"github.com/therealpaulgg/ssh-sync-common/pkg/dto"
 	"github.com/therealpaulgg/ssh-sync-common/pkg/wsutils"
-	pqc "github.com/therealpaulgg/ssh-sync-server/pkg/crypto"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/crypto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware/context_keys"
@@ -269,7 +269,7 @@ func NewMachineChallengeHandler(i *do.Injector, r *http.Request, w http.Response
 		return
 	}
 
-	if _, err := pqc.ValidatePublicKey(pubkey.Data.PublicKey); err != nil {
+	if _, err := crypto.ValidatePublicKey(pubkey.Data.PublicKey); err != nil {
 		log.Err(err).Msg("Invalid public key format in challenge flow")
 		if err := wsutils.WriteServerError[dto.MessageDto](&conn, "Invalid public key format"); err != nil {
 			log.Err(err).Msg("Error writing server error")

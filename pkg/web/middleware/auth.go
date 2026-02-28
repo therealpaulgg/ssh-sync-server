@@ -14,7 +14,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
-	pqc "github.com/therealpaulgg/ssh-sync-server/pkg/crypto"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/crypto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware/context_keys"
 )
@@ -78,7 +78,7 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 			}
 			tokenString := submatches[1]
 
-			alg, err := pqc.DetectJWTAlgorithm(tokenString)
+			alg, err := crypto.DetectJWTAlgorithm(tokenString)
 			if err != nil {
 				log.Debug().Err(err).Msg("failed to detect JWT algorithm")
 				w.WriteHeader(http.StatusUnauthorized)
@@ -106,7 +106,7 @@ func ConfigureAuth(i *do.Injector) func(http.Handler) http.Handler {
 				return
 			}
 
-			if err := pqc.VerifyJWT(tokenString, alg, m.PublicKey); err != nil {
+			if err := crypto.VerifyJWT(tokenString, alg, m.PublicKey); err != nil {
 				log.Debug().Err(err).Msg("JWT verification failed")
 				w.WriteHeader(http.StatusUnauthorized)
 				return

@@ -13,7 +13,7 @@ import (
 	"github.com/samber/do"
 	"github.com/samber/lo"
 	"github.com/therealpaulgg/ssh-sync-common/pkg/dto"
-	pqc "github.com/therealpaulgg/ssh-sync-server/pkg/crypto"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/crypto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
@@ -135,7 +135,7 @@ func updateMachineKey(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		if _, err := pqc.ValidatePublicKey(fileBytes); err != nil {
+		if _, err := crypto.ValidatePublicKey(fileBytes); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
