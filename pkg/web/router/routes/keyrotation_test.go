@@ -16,8 +16,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/therealpaulgg/ssh-sync-common/pkg/dto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/testutils"
+	pgxmock "github.com/therealpaulgg/ssh-sync-server/test/pgx"
 )
 
 func TestPostKeyRotation(t *testing.T) {
@@ -51,9 +53,17 @@ func TestPostKeyRotation(t *testing.T) {
 		return mockMachineRepo, nil
 	})
 
+	txMock := pgxmock.NewMockTx(ctrl)
+	mockTxService := query.NewMockTransactionService(ctrl)
+	mockTxService.EXPECT().StartTx(gomock.Any()).Return(txMock, nil)
+	mockTxService.EXPECT().Commit(txMock).Return(nil)
+	do.Provide(injector, func(i *do.Injector) (query.TransactionService, error) {
+		return mockTxService, nil
+	})
+
 	mockRotationRepo := repository.NewMockMasterKeyRotationRepository(ctrl)
-	mockRotationRepo.EXPECT().UpsertRotation(machine1.ID, []byte("enc-key-1")).Return(nil)
-	mockRotationRepo.EXPECT().UpsertRotation(machine2.ID, []byte("enc-key-2")).Return(nil)
+	mockRotationRepo.EXPECT().UpsertRotationTx(txMock, machine1.ID, []byte("enc-key-1")).Return(nil)
+	mockRotationRepo.EXPECT().UpsertRotationTx(txMock, machine2.ID, []byte("enc-key-2")).Return(nil)
 	do.Provide(injector, func(i *do.Injector) (repository.MasterKeyRotationRepository, error) {
 		return mockRotationRepo, nil
 	})
@@ -111,11 +121,6 @@ func TestPostKeyRotation_ForbiddenMachineID(t *testing.T) {
 		return mockMachineRepo, nil
 	})
 
-	mockRotationRepo := repository.NewMockMasterKeyRotationRepository(ctrl)
-	do.Provide(injector, func(i *do.Injector) (repository.MasterKeyRotationRepository, error) {
-		return mockRotationRepo, nil
-	})
-
 	// Act
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(postKeyRotation(injector))
@@ -153,8 +158,16 @@ func TestPostKeyRotation_UpsertError(t *testing.T) {
 		return mockMachineRepo, nil
 	})
 
+	txMock := pgxmock.NewMockTx(ctrl)
+	mockTxService := query.NewMockTransactionService(ctrl)
+	mockTxService.EXPECT().StartTx(gomock.Any()).Return(txMock, nil)
+	mockTxService.EXPECT().Rollback(txMock).Return(nil)
+	do.Provide(injector, func(i *do.Injector) (query.TransactionService, error) {
+		return mockTxService, nil
+	})
+
 	mockRotationRepo := repository.NewMockMasterKeyRotationRepository(ctrl)
-	mockRotationRepo.EXPECT().UpsertRotation(machine.ID, []byte("enc-key")).Return(errors.New("db error"))
+	mockRotationRepo.EXPECT().UpsertRotationTx(txMock, machine.ID, []byte("enc-key")).Return(errors.New("db error"))
 	do.Provide(injector, func(i *do.Injector) (repository.MasterKeyRotationRepository, error) {
 		return mockRotationRepo, nil
 	})

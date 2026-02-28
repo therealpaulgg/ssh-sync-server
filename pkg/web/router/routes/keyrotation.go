@@ -7,10 +7,12 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi"
+	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do"
 	"github.com/therealpaulgg/ssh-sync-common/pkg/dto"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
+	"github.com/therealpaulgg/ssh-sync-server/pkg/database/query"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/repository"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware/context_keys"
@@ -42,21 +44,30 @@ func postKeyRotation(i *do.Injector) http.HandlerFunc {
 			machineIDSet[m.ID.String()] = true
 		}
 
-		rotationRepo := do.MustInvoke[repository.MasterKeyRotationRepository](i)
-
 		for _, entry := range req.Keys {
 			if !machineIDSet[entry.MachineID.String()] {
 				w.WriteHeader(http.StatusForbidden)
 				return
 			}
-			if err := rotationRepo.UpsertRotation(entry.MachineID, entry.EncryptedMasterKey); err != nil {
+		}
+
+		txQueryService := do.MustInvoke[query.TransactionService](i)
+		tx, err := txQueryService.StartTx(pgx.TxOptions{})
+		if err != nil {
+			log.Err(err).Msg("postKeyRotation: error starting transaction")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		defer query.RollbackFunc(txQueryService, tx, w, &err)
+
+		rotationRepo := do.MustInvoke[repository.MasterKeyRotationRepository](i)
+		for _, entry := range req.Keys {
+			if err = rotationRepo.UpsertRotationTx(tx, entry.MachineID, entry.EncryptedMasterKey); err != nil {
 				log.Err(err).Msg("postKeyRotation: error upserting rotation")
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 		}
-
-		w.WriteHeader(http.StatusOK)
 	}
 }
 

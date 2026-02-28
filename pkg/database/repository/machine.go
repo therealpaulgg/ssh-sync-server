@@ -20,8 +20,7 @@ type MachineRepository interface {
 	CreateMachine(machine *models.Machine) (*models.Machine, error)
 	CreateMachineTx(machine *models.Machine, tx pgx.Tx) (*models.Machine, error)
 	GetUserMachines(id uuid.UUID) ([]models.Machine, error)
-	UpdateMachinePublicKey(id uuid.UUID, publicKey []byte) error
-	UpdateMachineEncapsulationKey(id uuid.UUID, key []byte) error
+	UpdateMachineKeys(id uuid.UUID, publicKey []byte, encapsulationKey []byte) error
 }
 
 type MachineRepo struct {
@@ -109,22 +108,12 @@ func (repo *MachineRepo) CreateMachineTx(machine *models.Machine, tx pgx.Tx) (*m
 	return newMachine, nil
 }
 
-func (repo *MachineRepo) UpdateMachinePublicKey(id uuid.UUID, publicKey []byte) error {
+func (repo *MachineRepo) UpdateMachineKeys(id uuid.UUID, publicKey []byte, encapsulationKey []byte) error {
 	q := do.MustInvoke[database.DataAccessor](repo.Injector)
 	_, err := q.GetConnection().Exec(
 		context.TODO(),
-		"UPDATE machines SET public_key = $1 WHERE id = $2",
-		publicKey, id,
-	)
-	return err
-}
-
-func (repo *MachineRepo) UpdateMachineEncapsulationKey(id uuid.UUID, key []byte) error {
-	q := do.MustInvoke[database.DataAccessor](repo.Injector)
-	_, err := q.GetConnection().Exec(
-		context.TODO(),
-		"UPDATE machines SET encapsulation_key = $1 WHERE id = $2",
-		key, id,
+		"UPDATE machines SET public_key = $1, encapsulation_key = COALESCE($2, encapsulation_key) WHERE id = $3",
+		publicKey, encapsulationKey, id,
 	)
 	return err
 }

@@ -9,6 +9,7 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 	uuid "github.com/google/uuid"
+	pgx "github.com/jackc/pgx/v5"
 	models "github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 )
 
@@ -35,18 +36,18 @@ func (m *MockMasterKeyRotationRepository) EXPECT() *MockMasterKeyRotationReposit
 	return m.recorder
 }
 
-// UpsertRotation mocks base method.
-func (m *MockMasterKeyRotationRepository) UpsertRotation(machineID uuid.UUID, encKey []byte) error {
+// UpsertRotationTx mocks base method.
+func (m *MockMasterKeyRotationRepository) UpsertRotationTx(tx pgx.Tx, machineID uuid.UUID, encKey []byte) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertRotation", machineID, encKey)
+	ret := m.ctrl.Call(m, "UpsertRotationTx", tx, machineID, encKey)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpsertRotation indicates an expected call of UpsertRotation.
-func (mr *MockMasterKeyRotationRepositoryMockRecorder) UpsertRotation(machineID, encKey interface{}) *gomock.Call {
+// UpsertRotationTx indicates an expected call of UpsertRotationTx.
+func (mr *MockMasterKeyRotationRepositoryMockRecorder) UpsertRotationTx(tx, machineID, encKey interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertRotation", reflect.TypeOf((*MockMasterKeyRotationRepository)(nil).UpsertRotation), machineID, encKey)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertRotationTx", reflect.TypeOf((*MockMasterKeyRotationRepository)(nil).UpsertRotationTx), tx, machineID, encKey)
 }
 
 // GetRotationForMachine mocks base method.

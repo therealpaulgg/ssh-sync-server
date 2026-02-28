@@ -152,29 +152,24 @@ func updateMachineKey(i *do.Injector) http.HandlerFunc {
 			return
 		}
 		log.Debug().Msg("updateMachineKey: public key validated")
-		machineRepo := do.MustInvoke[repository.MachineRepository](i)
-		if err := machineRepo.UpdateMachinePublicKey(machine.ID, fileBytes); err != nil {
-			log.Err(err).Msg("error updating machine public key")
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		log.Debug().Str("machine_id", machine.ID.String()).Msg("updateMachineKey: machine public key updated")
+		var ekBytes []byte
 		ekFile, _, ekErr := r.FormFile("encapsulation_key")
 		if ekErr == nil {
 			defer ekFile.Close()
-			ekBytes, err := io.ReadAll(ekFile)
+			ekBytes, err = io.ReadAll(ekFile)
 			if err != nil {
 				log.Err(err).Msg("error reading encapsulation key file")
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			if err := machineRepo.UpdateMachineEncapsulationKey(machine.ID, ekBytes); err != nil {
-				log.Err(err).Msg("error updating machine encapsulation key")
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			log.Debug().Str("machine_id", machine.ID.String()).Msg("updateMachineKey: encapsulation key updated")
 		}
+		machineRepo := do.MustInvoke[repository.MachineRepository](i)
+		if err := machineRepo.UpdateMachineKeys(machine.ID, fileBytes, ekBytes); err != nil {
+			log.Err(err).Msg("error updating machine keys")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		log.Debug().Str("machine_id", machine.ID.String()).Msg("updateMachineKey: machine keys updated")
 		w.WriteHeader(http.StatusOK)
 	}
 }

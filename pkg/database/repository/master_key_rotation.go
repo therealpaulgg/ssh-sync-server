@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/samber/do"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
@@ -12,7 +13,7 @@ import (
 )
 
 type MasterKeyRotationRepository interface {
-	UpsertRotation(machineID uuid.UUID, encKey []byte) error
+	UpsertRotationTx(tx pgx.Tx, machineID uuid.UUID, encKey []byte) error
 	GetRotationForMachine(machineID uuid.UUID) (*models.MasterKeyRotation, error)
 	DeleteRotationForMachine(machineID uuid.UUID) error
 }
@@ -21,15 +22,12 @@ type MasterKeyRotationRepo struct {
 	Injector *do.Injector
 }
 
-func (repo *MasterKeyRotationRepo) UpsertRotation(machineID uuid.UUID, encKey []byte) error {
-	q := do.MustInvoke[database.DataAccessor](repo.Injector)
-	_, err := q.GetConnection().Exec(
-		context.TODO(),
-		`INSERT INTO master_key_rotations (machine_id, encrypted_master_key)
-		 VALUES ($1, $2)
-		 ON CONFLICT (machine_id) DO UPDATE SET encrypted_master_key = EXCLUDED.encrypted_master_key, created_at = now() AT TIME ZONE 'UTC'`,
-		machineID, encKey,
-	)
+const upsertRotationSQL = `INSERT INTO master_key_rotations (machine_id, encrypted_master_key)
+	 VALUES ($1, $2)
+	 ON CONFLICT (machine_id) DO UPDATE SET encrypted_master_key = EXCLUDED.encrypted_master_key, created_at = now() AT TIME ZONE 'UTC'`
+
+func (repo *MasterKeyRotationRepo) UpsertRotationTx(tx pgx.Tx, machineID uuid.UUID, encKey []byte) error {
+	_, err := tx.Exec(context.TODO(), upsertRotationSQL, machineID, encKey)
 	return err
 }
 
