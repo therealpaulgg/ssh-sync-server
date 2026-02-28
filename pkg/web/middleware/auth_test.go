@@ -232,7 +232,7 @@ func TestConfigureAuthUnsignedToken(t *testing.T) {
 	}
 	req.Header.Set("Authorization", "Bearer "+string(token))
 
-	// Act - "none" algorithm is now rejected early before DB lookups
+	// Act
 	rr := httptest.NewRecorder()
 	f := ConfigureAuth(i)
 	f(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

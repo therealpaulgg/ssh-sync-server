@@ -34,7 +34,6 @@ func DetectJWTAlgorithm(tokenString string) (string, error) {
 	return header.Alg, nil
 }
 
-// VerifyJWT verifies the signature of a JWT using the stored public key PEM.
 func VerifyJWT(tokenString, alg string, publicKeyPEM []byte) error {
 	switch alg {
 	case "ES256", "ES512":

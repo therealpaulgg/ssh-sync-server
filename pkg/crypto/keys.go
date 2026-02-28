@@ -46,7 +46,6 @@ func ValidatePublicKey(pemBytes []byte) (KeyType, error) {
 		}
 		return KeyTypeECDSA, nil
 	case KeyTypeMLDSA:
-		// Try all supported variants; the PEM block does not encode the parameter set.
 		for _, algStr := range []string{mldsa.MLDSA44().String(), mldsa.MLDSA65().String(), mldsa.MLDSA87().String()} {
 			alg, _ := MLDSAAlgorithmFromString(algStr)
 			if _, err := ParseMLDSAPublicKey(pemBytes, alg); err == nil {

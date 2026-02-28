@@ -17,8 +17,7 @@ type jwtExpClaims struct {
 }
 
 // MLDSAAlgorithmFromString maps a JOSE algorithm identifier to its *mldsa.Parameters.
-// Algorithm identifiers follow draft-ietf-cose-dilithium:
-// https://datatracker.ietf.org/doc/draft-ietf-cose-dilithium/
+// See draft-ietf-cose-dilithium: https://datatracker.ietf.org/doc/draft-ietf-cose-dilithium/
 func MLDSAAlgorithmFromString(algStr string) (*mldsa.Parameters, error) {
 	switch algStr {
 	case mldsa.MLDSA44().String():
@@ -47,9 +46,8 @@ func ParseMLDSAPublicKey(pemBytes []byte, algorithm *mldsa.Parameters) (*mldsa.P
 	return pk, nil
 }
 
-// VerifyMLDSAJWT verifies a JWT whose alg is an ML-DSA variant as defined in
-// draft-ietf-cose-dilithium:
-// https://datatracker.ietf.org/doc/draft-ietf-cose-dilithium/
+// VerifyMLDSAJWT verifies a JWT signed with an ML-DSA variant.
+// See draft-ietf-cose-dilithium: https://datatracker.ietf.org/doc/draft-ietf-cose-dilithium/
 func VerifyMLDSAJWT(tokenString string, pubKey *mldsa.PublicKey) error {
 	parts := strings.SplitN(tokenString, ".", 3)
 	if len(parts) != 3 {
