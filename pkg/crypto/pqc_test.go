@@ -57,7 +57,7 @@ func generateMLDSAPEMWithParams(t *testing.T, params *mldsa.Parameters) ([]byte,
 	priv, err := mldsa.GenerateKey(params)
 	require.NoError(t, err)
 	pub := priv.PublicKey()
-	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "MLDSA PUBLIC KEY", Bytes: pub.Bytes()})
+	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "ML-DSA PUBLIC KEY", Bytes: pub.Bytes()})
 	return pemBytes, pub, priv
 }
 
@@ -111,7 +111,7 @@ func TestParseMLDSAPublicKey_WrongPEMType(t *testing.T) {
 }
 
 func TestParseMLDSAPublicKey_InvalidData(t *testing.T) {
-	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "MLDSA PUBLIC KEY", Bytes: []byte{1, 2, 3}})
+	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "ML-DSA PUBLIC KEY", Bytes: []byte{1, 2, 3}})
 	_, err := ParseMLDSAPublicKey(pemBytes, mldsa.MLDSA65())
 	assert.Error(t, err)
 }
@@ -145,7 +145,7 @@ func TestValidatePublicKey_MLDSA87(t *testing.T) {
 }
 
 func TestValidatePublicKey_MLDSA_UnrecognizedSize(t *testing.T) {
-	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "MLDSA PUBLIC KEY", Bytes: make([]byte, 42)})
+	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "ML-DSA PUBLIC KEY", Bytes: make([]byte, 42)})
 	_, err := ValidatePublicKey(pemBytes)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unrecognized key size")
@@ -324,4 +324,3 @@ func TestDetectJWTAlgorithm_InvalidHeaderBase64(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to decode JWT header")
 }
-

@@ -88,7 +88,7 @@ func GenerateMLDSATestKeys() (*mldsa.PublicKey, *mldsa.PrivateKey, error) {
 // EncodeMLDSAToPem PEM-encodes an ML-DSA public key.
 func EncodeMLDSAToPem(pub *mldsa.PublicKey) ([]byte, error) {
 	return pem.EncodeToMemory(&pem.Block{
-		Type:  "MLDSA PUBLIC KEY",
+		Type:  "ML-DSA PUBLIC KEY",
 		Bytes: pub.Bytes(),
 	}), nil
 }

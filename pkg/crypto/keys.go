@@ -26,7 +26,7 @@ func DetectKeyType(pemBytes []byte) KeyType {
 	switch block.Type {
 	case "PUBLIC KEY":
 		return KeyTypeECDSA
-	case "MLDSA PUBLIC KEY":
+	case "ML-DSA PUBLIC KEY":
 		return KeyTypeMLDSA
 	default:
 		return KeyTypeUnknown

@@ -36,7 +36,7 @@ func ParseMLDSAPublicKey(pemBytes []byte, algorithm *mldsa.Parameters) (*mldsa.P
 	if block == nil {
 		return nil, errors.New("failed to decode PEM block")
 	}
-	if block.Type != "MLDSA PUBLIC KEY" {
+	if block.Type != "ML-DSA PUBLIC KEY" {
 		return nil, fmt.Errorf("unexpected PEM block type: %s", block.Type)
 	}
 	pk, err := mldsa.NewPublicKey(algorithm, block.Bytes)
