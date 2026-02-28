@@ -342,3 +342,27 @@ func TestDeleteKeyError(t *testing.T) {
 			status, http.StatusInternalServerError)
 	}
 }
+
+func TestDeleteKeyBadID(t *testing.T) {
+	req := httptest.NewRequest("DELETE", "/not-a-uuid", nil)
+	user := testutils.GenerateUser()
+	req = testutils.AddUserContext(req, user)
+
+	injector := do.New()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockUserRepo := repository.NewMockUserRepository(ctrl)
+	do.Provide(injector, func(i *do.Injector) (repository.UserRepository, error) {
+		return mockUserRepo, nil
+	})
+
+	rr := httptest.NewRecorder()
+	handler := chi.NewRouter()
+	handler.Delete("/{id}", deleteData(injector))
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf("deleteData returned wrong status code: got %v want %v",
+			status, http.StatusBadRequest)
+	}
+}
