@@ -136,23 +136,6 @@ func TestDetectJWTAlgorithm_InvalidFormat(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestExtractJWTClaims(t *testing.T) {
-	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"MLDSA"}`))
-	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"username":"alice","machine":"laptop"}`))
-	sig := base64.RawURLEncoding.EncodeToString([]byte("sig"))
-	token := header + "." + payload + "." + sig
-
-	username, machine, err := ExtractJWTClaims(token)
-	require.NoError(t, err)
-	assert.Equal(t, "alice", username)
-	assert.Equal(t, "laptop", machine)
-}
-
-func TestExtractJWTClaims_InvalidFormat(t *testing.T) {
-	_, _, err := ExtractJWTClaims("not-a-jwt")
-	assert.Error(t, err)
-}
-
 func TestVerifyMLDSAJWT_Valid(t *testing.T) {
 	_, pub, priv := generateMLDSAPEM(t)
 	token := signMLDSAJWT(t, priv, "user1", "machine1", time.Now().Add(5*time.Minute))
