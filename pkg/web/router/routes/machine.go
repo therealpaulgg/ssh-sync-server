@@ -31,18 +31,21 @@ func getMachineById(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("username", user.Username).Msg("getMachineById: request received")
 		machineRepo := do.MustInvoke[repository.MachineRepository](i)
 		machines, err := machineRepo.GetUserMachines(user.ID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Int("machines_count", len(machines)).Msg("getMachineById: fetched machines for user")
 		user.Machines = machines
 		machineId, err := uuid.Parse(chi.URLParam(r, "machineId"))
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Str("machine_id", machineId.String()).Msg("getMachineById: parsed machine id")
 		machine, found := lo.Find(user.Machines, func(machine models.Machine) bool {
 			return machine.ID == machineId
 		})
@@ -50,6 +53,7 @@ func getMachineById(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
+		log.Debug().Str("machine_name", machine.Name).Msg("getMachineById: found machine")
 		machineDto := dto.MachineDto{
 			Name: machine.Name,
 		}
@@ -64,12 +68,14 @@ func getMachines(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("username", user.Username).Msg("getMachines: request received")
 		machineRepo := do.MustInvoke[repository.MachineRepository](i)
 		machines, err := machineRepo.GetUserMachines(user.ID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Int("machines_count", len(machines)).Msg("getMachines: fetched machines for user")
 		user.Machines = machines
 		machineDtos := make([]dto.MachineDto, len(user.Machines))
 		for i, machine := range user.Machines {
@@ -88,11 +94,13 @@ func deleteMachine(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("username", user.Username).Msg("deleteMachine: request received")
 		var deleteRequest DeleteRequest
 		if err := json.NewDecoder(r.Body).Decode(&deleteRequest); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Str("machine_name", deleteRequest.MachineName).Msg("deleteMachine: parsed request body")
 		machineRepo := do.MustInvoke[repository.MachineRepository](i)
 		machine, err := machineRepo.GetMachineByNameAndUser(deleteRequest.MachineName, user.ID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -103,11 +111,13 @@ func deleteMachine(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("machine_id", machine.ID.String()).Msg("deleteMachine: fetched machine")
 		if err := machineRepo.DeleteMachine(machine.ID); err != nil {
 			log.Err(err).Msg("Error deleting machine")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("machine_id", machine.ID.String()).Msg("deleteMachine: machine deleted")
 	}
 }
 
@@ -118,11 +128,13 @@ func updateMachineKey(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("machine_name", machine.Name).Msg("updateMachineKey: request received")
 		err := r.ParseMultipartForm(32 << 20)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Msg("updateMachineKey: parsed multipart form")
 		file, _, err := r.FormFile("key")
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -139,12 +151,14 @@ func updateMachineKey(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Msg("updateMachineKey: public key validated")
 		machineRepo := do.MustInvoke[repository.MachineRepository](i)
 		if err := machineRepo.UpdateMachinePublicKey(machine.ID, fileBytes); err != nil {
 			log.Err(err).Msg("error updating machine public key")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("machine_id", machine.ID.String()).Msg("updateMachineKey: machine public key updated")
 		w.WriteHeader(http.StatusOK)
 	}
 }

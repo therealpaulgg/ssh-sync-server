@@ -29,18 +29,21 @@ func getData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("username", user.Username).Msg("getData: request received")
 		userRepo := do.MustInvoke[repository.UserRepository](i)
 		keys, err := userRepo.GetUserKeys(user.ID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Int("keys_count", len(keys)).Msg("getData: fetched user keys")
 		user.Keys = keys
 		config, err := userRepo.GetUserConfig(user.ID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Int("config_count", len(config)).Msg("getData: fetched user config")
 		user.Config = config
 		dto := dto.DataDto{
 			ID:       user.ID,
@@ -62,6 +65,7 @@ func getData(i *do.Injector) http.HandlerFunc {
 				}
 			}),
 		}
+		log.Debug().Msg("getData: responding with user data")
 		json.NewEncoder(w).Encode(dto)
 	}
 }
@@ -74,6 +78,7 @@ func addData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("username", user.Username).Msg("addData: request received")
 		userRepo := do.MustInvoke[repository.UserRepository](i)
 		err := r.ParseMultipartForm(32 << 20)
 		if err != nil {
@@ -81,6 +86,7 @@ func addData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Msg("addData: parsed multipart form")
 		m := r.MultipartForm
 		sshConfigDataRaw := r.FormValue("ssh_config")
 		if sshConfigDataRaw == "" {
@@ -94,6 +100,7 @@ func addData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Int("ssh_config_count", len(sshConfig)).Msg("addData: decoded ssh config")
 		sshConfigData := lo.Map(sshConfig, func(conf dto.SshConfigDto, i int) models.SshConfig {
 			return models.SshConfig{
 				UserID:        user.ID,
@@ -110,12 +117,14 @@ func addData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Msg("addData: transaction started")
 		defer query.RollbackFunc(txQueryService, tx, w, &err)
 		if err = userRepo.AddAndUpdateConfigTx(user, tx); err != nil {
 			log.Err(err).Msg("could not add config")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Int("ssh_config_count", len(user.Config)).Msg("addData: stored ssh config")
 		var files []*multipart.FileHeader
 		for _, filelist := range m.File {
 			files = append(files, filelist...)
@@ -128,6 +137,7 @@ func addData(i *do.Injector) http.HandlerFunc {
 				return
 			}
 			defer file.Close()
+			log.Debug().Str("filename", files[i].Filename).Msg("addData: processing key file")
 			user.Keys = append(user.Keys, models.SshKey{
 				UserID:   user.ID,
 				Filename: files[i].Filename,
@@ -138,11 +148,13 @@ func addData(i *do.Injector) http.HandlerFunc {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
+			log.Debug().Str("filename", files[i].Filename).Msg("addData: read key file")
 		}
 		if err = userRepo.AddAndUpdateKeysTx(user, tx); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Int("keys_count", len(user.Keys)).Msg("addData: stored keys")
 	}
 }
 
@@ -154,6 +166,7 @@ func deleteData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("username", user.Username).Msg("deleteData: request received")
 		keyIdStr := chi.URLParam(r, "id")
 		keyId, err := uuid.Parse(keyIdStr)
 		if err != nil {
@@ -161,6 +174,7 @@ func deleteData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Str("key_id", keyId.String()).Msg("deleteData: parsed key id")
 		userRepo := do.MustInvoke[repository.UserRepository](i)
 		key, err := userRepo.GetUserKey(user.ID, keyId)
 		if err != nil {
@@ -168,6 +182,7 @@ func deleteData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
+		log.Debug().Str("key_filename", key.Filename).Msg("deleteData: fetched key")
 		txQueryService := do.MustInvoke[query.TransactionService](i)
 		tx, err := txQueryService.StartTx(pgx.TxOptions{})
 		if err != nil {
@@ -175,12 +190,14 @@ func deleteData(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Msg("deleteData: transaction started")
 		defer query.RollbackFunc(txQueryService, tx, w, &err)
 		if err = userRepo.DeleteUserKeyTx(user, key.ID, tx); err != nil {
 			log.Err(err).Msg("could not delete key")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("key_id", key.ID.String()).Msg("deleteData: key deleted")
 	}
 }
 

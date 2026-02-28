@@ -20,23 +20,27 @@ import (
 
 func initialSetup(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Debug().Msg("initialSetup: request received")
 		var userDto dto.UserDto
 		err := r.ParseMultipartForm(32 << 20)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Msg("initialSetup: parsed multipart form")
 		username := r.FormValue("username")
 		if username == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Str("username", username).Msg("initialSetup: parsed username")
 		userDto.Username = username
 		machineName := r.FormValue("machine_name")
 		if machineName == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Str("machine_name", machineName).Msg("initialSetup: parsed machine name")
 		file, _, err := r.FormFile("key")
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -53,6 +57,7 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		log.Debug().Msg("initialSetup: public key validated")
 		txQueryService := do.MustInvoke[query.TransactionService](i)
 		tx, err := txQueryService.StartTx(pgx.TxOptions{})
 		if err != nil {
@@ -60,10 +65,12 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Msg("initialSetup: transaction started")
 		defer query.RollbackFunc(txQueryService, tx, w, &err)
 		userRepo := do.MustInvoke[repository.UserRepository](i)
 		user := &models.User{}
 		user.Username = userDto.Username
+		log.Debug().Str("username", user.Username).Msg("initialSetup: creating user")
 		user, err = userRepo.CreateUserTx(user, tx)
 		if err != nil {
 			if errors.Is(err, repository.ErrUserAlreadyExists) {
@@ -74,11 +81,13 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("user_id", user.ID.String()).Msg("initialSetup: user created")
 		machineRepo := do.MustInvoke[repository.MachineRepository](i)
 		machine := &models.Machine{}
 		machine.Name = machineName
 		machine.UserID = user.ID
 		machine.PublicKey = fileBytes
+		log.Debug().Str("machine_name", machine.Name).Msg("initialSetup: creating machine")
 		_, err = machineRepo.CreateMachineTx(machine, tx)
 		if err != nil {
 			if errors.Is(err, repository.ErrMachineAlreadyExists) {
@@ -89,28 +98,33 @@ func initialSetup(i *do.Injector) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Str("machine_name", machine.Name).Msg("initialSetup: machine created")
 	}
 }
 
 func challengeResponse(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Debug().Msg("challengeResponse: request received")
 		err := live.MachineChallengeResponse(i, r, w)
 		if err != nil {
 			log.Err(err).Msg("error with challenge response creation")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Msg("challengeResponse: response created")
 	}
 }
 
 func getExisting(i *do.Injector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Debug().Msg("getExisting: request received")
 		err := live.NewMachineChallenge(i, r, w)
 		if err != nil {
 			log.Err(err).Msg("error creating challenge")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		log.Debug().Msg("getExisting: challenge created")
 	}
 }
 
