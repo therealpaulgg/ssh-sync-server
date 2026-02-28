@@ -18,7 +18,7 @@ services:
         image: ssh-sync-server-prerelease
         container_name: ssh-sync-server
     ssh-sync-db:
-        image: ssh-sync-db
+        image: therealpaulgg/ssh-sync-db:latest 
         container_name: ssh-sync-db-debug
         environment:
           - POSTGRES_USER=sshsync
