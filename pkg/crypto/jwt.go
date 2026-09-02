@@ -1,13 +1,13 @@
 package crypto
 
 import (
+	"crypto/mldsa"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
-	"filippo.io/mldsa"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"

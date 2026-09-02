@@ -1,11 +1,11 @@
 package crypto
 
 import (
+	"crypto/mldsa"
 	"encoding/pem"
 	"errors"
 	"fmt"
 
-	"filippo.io/mldsa"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 )
@@ -47,7 +47,7 @@ func ValidatePublicKey(pemBytes []byte) (KeyType, error) {
 		return KeyTypeECDSA, nil
 	case KeyTypeMLDSA:
 		block, _ := pem.Decode(pemBytes)
-		algBySize := map[int]*mldsa.Parameters{
+		algBySize := map[int]mldsa.Parameters{
 			mldsa.MLDSA44().PublicKeySize(): mldsa.MLDSA44(),
 			mldsa.MLDSA65().PublicKeySize(): mldsa.MLDSA65(),
 			mldsa.MLDSA87().PublicKeySize(): mldsa.MLDSA87(),

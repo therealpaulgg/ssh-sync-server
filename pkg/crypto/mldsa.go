@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"crypto/mldsa"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
@@ -8,17 +9,15 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"filippo.io/mldsa"
 )
 
 type jwtExpClaims struct {
 	Exp float64 `json:"exp"`
 }
 
-// MLDSAAlgorithmFromString maps a JOSE algorithm identifier to its *mldsa.Parameters.
+// MLDSAAlgorithmFromString maps a JOSE algorithm identifier to its mldsa.Parameters.
 // See draft-ietf-cose-dilithium: https://datatracker.ietf.org/doc/draft-ietf-cose-dilithium/
-func MLDSAAlgorithmFromString(algStr string) (*mldsa.Parameters, error) {
+func MLDSAAlgorithmFromString(algStr string) (mldsa.Parameters, error) {
 	switch algStr {
 	case mldsa.MLDSA44().String():
 		return mldsa.MLDSA44(), nil
@@ -27,11 +26,11 @@ func MLDSAAlgorithmFromString(algStr string) (*mldsa.Parameters, error) {
 	case mldsa.MLDSA87().String():
 		return mldsa.MLDSA87(), nil
 	default:
-		return nil, fmt.Errorf("unsupported ML-DSA algorithm: %s", algStr)
+		return mldsa.Parameters{}, fmt.Errorf("unsupported ML-DSA algorithm: %s", algStr)
 	}
 }
 
-func ParseMLDSAPublicKey(pemBytes []byte, algorithm *mldsa.Parameters) (*mldsa.PublicKey, error) {
+func ParseMLDSAPublicKey(pemBytes []byte, algorithm mldsa.Parameters) (*mldsa.PublicKey, error) {
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
 		return nil, errors.New("failed to decode PEM block")

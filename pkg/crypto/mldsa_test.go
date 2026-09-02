@@ -1,15 +1,15 @@
 package crypto
 
 import (
+	"crypto/mldsa"
 	"testing"
 
-	"filippo.io/mldsa"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestMLDSAAlgorithmFromString_Valid(t *testing.T) {
-	for _, params := range []*mldsa.Parameters{mldsa.MLDSA44(), mldsa.MLDSA65(), mldsa.MLDSA87()} {
+	for _, params := range []mldsa.Parameters{mldsa.MLDSA44(), mldsa.MLDSA65(), mldsa.MLDSA87()} {
 		result, err := MLDSAAlgorithmFromString(params.String())
 		require.NoError(t, err)
 		assert.Equal(t, params, result)

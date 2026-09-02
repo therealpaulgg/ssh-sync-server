@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"crypto/mldsa"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -9,7 +10,6 @@ import (
 	"regexp"
 	"strings"
 
-	"filippo.io/mldsa"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/rs/zerolog/log"
