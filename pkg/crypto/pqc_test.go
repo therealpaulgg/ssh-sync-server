@@ -3,6 +3,7 @@ package crypto
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/mldsa"
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
@@ -12,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"filippo.io/mldsa"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
@@ -52,7 +52,7 @@ func generateMLDSAPEM(t *testing.T) ([]byte, *mldsa.PublicKey, *mldsa.PrivateKey
 	return generateMLDSAPEMWithParams(t, mldsa.MLDSA65())
 }
 
-func generateMLDSAPEMWithParams(t *testing.T, params *mldsa.Parameters) ([]byte, *mldsa.PublicKey, *mldsa.PrivateKey) {
+func generateMLDSAPEMWithParams(t *testing.T, params mldsa.Parameters) ([]byte, *mldsa.PublicKey, *mldsa.PrivateKey) {
 	t.Helper()
 	priv, err := mldsa.GenerateKey(params)
 	require.NoError(t, err)
@@ -61,7 +61,7 @@ func generateMLDSAPEMWithParams(t *testing.T, params *mldsa.Parameters) ([]byte,
 	return pemBytes, pub, priv
 }
 
-func signMLDSAJWT(t *testing.T, priv *mldsa.PrivateKey, params *mldsa.Parameters, username, machine string, exp time.Time) string {
+func signMLDSAJWT(t *testing.T, priv *mldsa.PrivateKey, params mldsa.Parameters, username, machine string, exp time.Time) string {
 	t.Helper()
 	header := fmt.Sprintf(`{"alg":"%s","typ":"JWT"}`, params.String())
 	claims := fmt.Sprintf(

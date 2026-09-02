@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/mldsa"
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
@@ -13,7 +14,6 @@ import (
 	"net/http"
 	"time"
 
-	"filippo.io/mldsa"
 	"github.com/google/uuid"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/database/models"
 	"github.com/therealpaulgg/ssh-sync-server/pkg/web/middleware/context_keys"
